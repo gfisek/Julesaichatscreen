@@ -24,6 +24,7 @@ export type CardItem = {
   location?: string;
   time?: string;
   cta?: string;
+  productId?: string;
 };
 
 export type PanelSession = {
@@ -43,11 +44,12 @@ type Props = {
   scrollToSessionId?: string | null;
   onScrollHandled?: () => void;
   isDark: boolean;
+  onProductClick?: (productId: string) => void;
 };
 
 export function ContentPanel({
   sessions, activeSessionId, onClose, isMobile, likedCards,
-  onLikedCardsChange, scrollToSessionId, onScrollHandled, isDark,
+  onLikedCardsChange, scrollToSessionId, onScrollHandled, isDark, onProductClick,
 }: Props) {
   const [showFavorites, setShowFavorites] = useState(false);
   const [activeCardIndices, setActiveCardIndices] = useState<Record<string, number>>({});
@@ -58,8 +60,9 @@ export function ContentPanel({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   /* ── Theme tokens ── */
-  const bg          = isDark ? "#0c1c28" : "#f7f7f5";
-  const bgHeader    = isDark ? "#0e1f2c" : "#ffffff";
+  const bg          = "transparent";
+  const bgSticky    = isDark ? "#1a3247" : "#F2F2F3";
+  const bgHeader    = isDark ? "rgba(14, 31, 44, 0.55)" : "rgba(255, 255, 255, 0.55)";
   const border      = isDark ? "#1d3547" : "#e5e7eb";
   const textPrimary = isDark ? "#cfe8f4" : "#111827";
   const textMuted   = isDark ? "#3d7089" : "#9ca3af";
@@ -116,13 +119,13 @@ export function ContentPanel({
       {/* ── Header ── */}
       <div
         className="shrink-0"
-        style={{ background: bgHeader, borderBottom: `1px solid ${border}`, padding: isMobile ? "8px 14px" : "16px 20px", transition: "background 0.3s, border-color 0.3s" }}
+        style={{ background: bgHeader, borderBottom: `1px solid ${border}`, padding: isMobile ? "8px 14px" : "14px 20px", transition: "background 0.3s, border-color 0.3s" }}
       >
         <div className="flex items-center gap-2">
           <button
             onClick={onClose}
             className="flex items-center justify-center shrink-0 transition-all rounded-lg"
-            style={{ width: "24px", height: "24px", color: accentColor, background: accentDimBg, border: `1px solid ${accentDimBdr}` }}
+            style={{ width: "24px", height: "24px", color: accentColor, background: accentDimBg, border: `1px solid ${accentDimBdr}`, cursor: "pointer" }}
             title="Sonuçları gizle"
             onMouseEnter={e => {
               (e.currentTarget as HTMLButtonElement).style.background = "#0a6e82";
@@ -154,21 +157,38 @@ export function ContentPanel({
               onMouseEnter={() => setHeartHover(true)}
               onMouseLeave={() => setHeartHover(false)}
               className="flex items-center gap-1 transition-all"
-              style={{
-                padding: isMobile ? "3px 8px" : "3px 9px",
-                borderRadius: "20px",
-                fontSize: "10px",
-                fontWeight: 600,
-                letterSpacing: "0.02em",
-                border: (showFavorites || heartHover) ? "1px solid #f87171" : `1px solid ${border}`,
-                background: (showFavorites || heartHover) ? (isDark ? "rgba(248,113,113,0.1)" : "#fff5f5") : "transparent",
-                color: (showFavorites || heartHover) ? "#f87171" : textMuted,
-                cursor: "pointer",
-                flexShrink: 0,
-                transition: "all 0.15s ease",
-              }}
+              style={(() => {
+                const hasFavs = totalFavCount >= 1;
+                const isRed   = showFavorites || heartHover || hasFavs;
+                return {
+                  padding: isMobile ? "3px 8px" : "3px 9px",
+                  borderRadius: "20px",
+                  fontSize: "10px",
+                  fontWeight: 600,
+                  letterSpacing: "0.02em",
+                  border: isRed ? "1px solid #f87171" : `1px solid ${border}`,
+                  background: isRed ? (isDark ? "rgba(248,113,113,0.1)" : "#fff5f5") : "transparent",
+                  color: isRed ? "#f87171" : textMuted,
+                  cursor: "pointer",
+                  flexShrink: 0,
+                  transition: "all 0.15s ease",
+                };
+              })()}
             >
-              <Heart size={10} style={{ fill: showFavorites ? "#f87171" : "none", color: (showFavorites || heartHover) ? "#f87171" : textMuted }} />
+              {(() => {
+                const hasFavs  = totalFavCount >= 1;
+                const isFilled = showFavorites || (heartHover && hasFavs);
+                const isRed    = showFavorites || heartHover || hasFavs;
+                return (
+                  <Heart
+                    size={10}
+                    style={{
+                      color: isRed ? "#f87171" : textMuted,
+                      fill: isFilled ? "#f87171" : "none",
+                    }}
+                  />
+                );
+              })()}
               {totalFavCount > 0 && <span>{totalFavCount}</span>}
             </button>
           </div>
@@ -191,7 +211,7 @@ export function ContentPanel({
           <div>
             <div
               className="flex items-center gap-3 px-5 py-2.5 sticky top-0 z-10"
-              style={{ background: bg, borderBottom: `1px solid ${border}` }}
+              style={{ background: bgSticky, borderBottom: `1px solid ${border}` }}
             >
               <Heart size={10} style={{ color: "#f87171" }} />
               <span style={{ fontSize: "10px", fontWeight: 600, letterSpacing: "0.06em", color: "#f87171", textTransform: "uppercase" }}>
@@ -229,6 +249,7 @@ export function ContentPanel({
                       liked={true}
                       onLike={() => toggleLike(`${sessionId}-${card.id}`)}
                       isDark={isDark}
+                      onProductClick={onProductClick}
                     />
                   ))}
                 </div>
@@ -252,7 +273,7 @@ export function ContentPanel({
             >
               <div
                 className="flex items-center gap-3 px-5 py-2.5 sticky top-0 z-10"
-                style={{ background: bg, borderBottom: `1px solid ${border}` }}
+                style={{ background: bgSticky, borderBottom: `1px solid ${border}` }}
               >
                 <div className="flex items-center gap-1.5">
                   <Clock size={10} style={{ color: isActive ? accentColor : textMuted }} />
@@ -297,6 +318,7 @@ export function ContentPanel({
                           liked={likedCards.has(likeKey)}
                           onLike={() => toggleLike(likeKey)}
                           isDark={isDark}
+                          onProductClick={onProductClick}
                         />
                       );
                     })}
@@ -319,7 +341,7 @@ export function ContentPanel({
    MobileCarousel
    ───────────────────────────────────────────────────────────────────────────── */
 export function MobileCarousel({
-  cards, sessionId, likedCards, onLike, activeIndex, onIndexChange, isDark,
+  cards, sessionId, likedCards, onLike, activeIndex, onIndexChange, isDark, onProductClick,
 }: {
   cards: CardItem[];
   sessionId: string;
@@ -328,15 +350,36 @@ export function MobileCarousel({
   activeIndex: number;
   onIndexChange: (i: number) => void;
   isDark: boolean;
+  onProductClick?: (productId: string) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const cardRefs  = useRef<(HTMLDivElement | null)[]>([]);
 
+  /* Scroll position → closest card index */
   const handleScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
-    const cardWidth = el.scrollWidth / cards.length;
-    const idx = Math.round(el.scrollLeft / cardWidth);
-    onIndexChange(Math.max(0, Math.min(idx, cards.length - 1)));
+    const containerCenter = el.scrollLeft + el.clientWidth / 2;
+    let closestIdx = 0;
+    let closestDist = Infinity;
+    cardRefs.current.forEach((card, i) => {
+      if (!card) return;
+      const cardCenter = card.offsetLeft + card.offsetWidth / 2;
+      const dist = Math.abs(cardCenter - containerCenter);
+      if (dist < closestDist) { closestDist = dist; closestIdx = i; }
+    });
+    onIndexChange(closestIdx);
+  };
+
+  /* Dot click → scroll to card center */
+  const scrollToIndex = (i: number) => {
+    const el   = scrollRef.current;
+    const card = cardRefs.current[i];
+    if (!el || !card) return;
+    const cardCenter     = card.offsetLeft + card.offsetWidth / 2;
+    const containerWidth = el.clientWidth;
+    el.scrollTo({ left: cardCenter - containerWidth / 2, behavior: "smooth" });
+    onIndexChange(i);
   };
 
   const accentColor = isDark ? "#4dc4ce" : "#0a6e82";
@@ -363,15 +406,20 @@ export function MobileCarousel({
         }}
         className="hide-scrollbar"
       >
-        {cards.map((card) => {
+        {cards.map((card, i) => {
           const likeKey = `${sessionId}-${card.id}`;
           return (
-            <div key={card.id} style={{ flexShrink: 0, width: "72%", scrollSnapAlign: "center" }}>
+            <div
+              key={card.id}
+              ref={(el) => { cardRefs.current[i] = el; }}
+              style={{ flexShrink: 0, width: "72%", scrollSnapAlign: "center" }}
+            >
               <CardView
                 card={card}
                 liked={likedCards.has(likeKey)}
                 onLike={() => onLike(likeKey)}
                 isDark={isDark}
+                onProductClick={onProductClick}
               />
             </div>
           );
@@ -382,18 +430,12 @@ export function MobileCarousel({
         {cards.map((_, i) => (
           <button
             key={i}
-            onClick={() => {
-              const el = scrollRef.current;
-              if (!el) return;
-              const cardWidth = el.scrollWidth / cards.length;
-              el.scrollTo({ left: cardWidth * i, behavior: "smooth" });
-              onIndexChange(i);
-            }}
+            onClick={() => scrollToIndex(i)}
             style={{
               width: i === activeIndex ? "16px" : "6px",
               height: "6px",
               borderRadius: "3px",
-              background: i === activeIndex ? accentColor : (isDark ? "#1d3547" : "#d1d5db"),
+              background: i === activeIndex ? accentColor : (isDark ? "#3a6075" : "#9ca3af"),
               border: "none",
               padding: 0,
               cursor: "pointer",
@@ -406,14 +448,15 @@ export function MobileCarousel({
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
+/* ────────────────────────────────────────────────────────────────────────────
    CardView
    ───────────────────────────────────────────────────────────────────────────── */
-export function CardView({ card, liked, onLike, isDark }: {
+export function CardView({ card, liked, onLike, isDark, onProductClick }: {
   card: CardItem;
   liked: boolean;
   onLike: () => void;
   isDark: boolean;
+  onProductClick?: (productId: string) => void;
 }) {
   const [hoverCta, setHoverCta] = useState(false);
 
@@ -509,6 +552,7 @@ export function CardView({ card, liked, onLike, isDark }: {
               color: hoverCta ? "white" : ctaText,
               transition: "all 0.15s",
             }}
+            onClick={() => card.productId && onProductClick?.(card.productId)}
           >
             {card.cta || "İncele"}
             <ArrowUpRight size={9} />

@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import {
   ArrowUp, CloudSun, CloudFog, Sun, SunDim, CloudRain,
-  CloudSnow, CloudLightning, Snowflake, SunHorizon, Moon,
+  CloudSnow, CloudLightning, Snowflake, SunHorizon, Moon, X as PhosphorX,
 } from "@phosphor-icons/react";
 import { MobileCarousel, CardView, type CardItem, type PanelSession } from "./ContentPanel";
 
@@ -34,6 +34,8 @@ type Props = {
   likedCards?: Set<string>;
   onLikedCardsChange?: (updater: (prev: Set<string>) => Set<string>) => void;
   panelSessions?: PanelSession[];
+  onProductClick?: (productId: string) => void;
+  onClose?: () => void;
 };
 
 const suggestions = [
@@ -46,7 +48,7 @@ const suggestions = [
 export function ChatPanel({
   messages, onSend, onShowCards, activeCardMsgId, isTyping,
   isPanelOpen, hasPanelSessions, onTogglePanel, isDark, onToggleDark,
-  isMobile, cardData, likedCards, onLikedCardsChange, panelSessions,
+  isMobile, cardData, likedCards, onLikedCardsChange, panelSessions, onProductClick, onClose,
 }: Props) {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -60,7 +62,7 @@ export function ChatPanel({
   const drawerTouchStartY = useRef(0);
 
   /* ── Shared emoji cycling ── */
-  const EMOJIS = ["👋🏼", "🖖🏼", "BOT_ICON", "👇🏼", "👍🏼", "🙏🏻", "🤝🏼", "👏"];
+  const EMOJIS = ["👋🏼", "🖖🏼", "BOT_ICON", "👇🏼", "👍🏼", "🙏🏼", "🤝🏼", "👏🏼"];
   const [emojiIndex, setEmojiIndex] = useState(0);
   const [emojiPhase, setEmojiPhase] = useState<"visible" | "out" | "in">("visible");
 
@@ -84,7 +86,7 @@ export function ChatPanel({
       : { transform: "scale(1) rotate(0deg)",     opacity: 1,  transition: "transform 0.22s cubic-bezier(0.34,1.56,0.64,1), opacity 0.18s ease" };
 
   /* ── Theme tokens ── */
-  const bg            = isDark ? "#0c1c28" : "#ffffff";
+  const bg            = "transparent";
   const border        = isDark ? "#1d3547" : "#e5e7eb";
   const textPrimary   = isDark ? "#cfe8f4" : "#111827";
   const textSecondary = isDark ? "#6fa8bf" : "#6b7280";
@@ -94,7 +96,7 @@ export function ChatPanel({
   const inputBg       = isDark ? "#132230" : "#f9fafb";
   const accentColor   = isDark ? "#4dc4ce" : "#0a6e82";
   const accentDimBg   = isDark ? "rgba(77,196,206,0.10)" : "#e6f7f9";
-  const accentDimBdr  = isDark ? "rgba(77,196,206,0.25)" : "#b2e4ea";
+  const accentDimBdr  = isDark ? "rgba(77,196,206,0.25)" : "#62b8c8";
 
   /* ── Date ── */
   const now = new Date();
@@ -198,22 +200,50 @@ export function ChatPanel({
 
       {/* ── Header ── */}
       <div
-        className="flex items-center gap-3 px-5 py-4 shrink-0 sticky top-0 z-10"
-        style={{ background: bg, borderBottom: `1px solid ${border}`, transition: "background 0.3s, border-color 0.3s" }}
+        className="flex items-center gap-3 shrink-0 sticky top-0 z-10"
+        style={{
+          paddingTop: isMobile ? "6px" : "14px",
+          paddingRight: "20px",
+          paddingBottom: isMobile ? "6px" : "14px",
+          paddingLeft: "20px",
+          background: bg, borderBottom: `1px solid ${border}`, transition: "background 0.3s, border-color 0.3s"
+        }}
       >
+        {/* Close button — leftmost */}
+        {onClose && (
+          <button
+            onClick={onClose}
+            title="Jules'ı kapat"
+            className="flex items-center justify-center rounded-lg transition-all"
+            style={{ width: "24px", height: "24px", color: textMuted, background: "transparent", border: `1px solid ${border}`, flexShrink: 0, cursor: "pointer" }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLButtonElement).style.background = "rgba(248,113,113,0.12)";
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "#f87171";
+              (e.currentTarget as HTMLButtonElement).style.color = "#f87171";
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+              (e.currentTarget as HTMLButtonElement).style.borderColor = border;
+              (e.currentTarget as HTMLButtonElement).style.color = textMuted;
+            }}
+          >
+            <PhosphorX size={11} weight="bold" />
+          </button>
+        )}
+
         {/* Date / Weather / Sunset */}
         <div className="flex items-center gap-3 overflow-hidden">
-          <span style={{ fontSize: "12px", color: textSecondary, whiteSpace: "nowrap", flexShrink: 0 }}>{dateStr}</span>
+          <span style={{ fontSize: "10px", color: textSecondary, whiteSpace: "nowrap", flexShrink: 0 }}>{dateStr}</span>
           {weatherInfo && (
             <>
               <div className="flex items-center gap-1 shrink-0">
                 {weatherIcon(weatherInfo.code)}
-                <span style={{ fontSize: "12px", color: textSecondary, whiteSpace: "nowrap" }}>{weatherInfo.temp}°C</span>
+                <span style={{ fontSize: "10px", color: textSecondary, whiteSpace: "nowrap" }}>{weatherInfo.temp}°C</span>
               </div>
               {sunLabel && !isMobile && (
                 <div className="flex items-center gap-1 shrink-0">
-                  <SunHorizon size={14} style={{ color: accentColor, flexShrink: 0 }} />
-                  <span style={{ fontSize: "12px", color: textSecondary, whiteSpace: "nowrap" }}>{sunLabel.label}</span>
+                  <SunHorizon size={12} style={{ color: accentColor, flexShrink: 0 }} />
+                  <span style={{ fontSize: "10px", color: textSecondary, whiteSpace: "nowrap" }}>{sunLabel.label}</span>
                 </div>
               )}
             </>
@@ -254,7 +284,7 @@ export function ChatPanel({
               onClick={onTogglePanel}
               title="Sonuçları göster"
               className="flex items-center justify-center rounded-lg transition-all"
-              style={{ width: "24px", height: "24px", color: accentColor, background: accentDimBg, border: `1px solid ${accentDimBdr}` }}
+              style={{ width: "24px", height: "24px", color: accentColor, background: accentDimBg, border: `1px solid ${accentDimBdr}`, cursor: "pointer" }}
               onMouseEnter={e => {
                 (e.currentTarget as HTMLButtonElement).style.background = "#0a6e82";
                 (e.currentTarget as HTMLButtonElement).style.color = "#ffffff";
@@ -278,27 +308,30 @@ export function ChatPanel({
         {messages.length === 0 && (
           <div className="flex-1 flex flex-col items-center justify-center gap-4">
             <div
-              style={{ width: "56px", height: "56px", display: "flex", alignItems: "center", justifyContent: "center" }}
+              style={{ width: "56px", height: "56px", position: "relative", overflow: "hidden", flexShrink: 0 }}
             >
-              {EMOJIS[emojiIndex] === "BOT_ICON" ? (
-                <div style={{ ...emojiAnimStyle }}>
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center shadow-md" style={{ background: "#0a6e82" }}>
-                    <Bot size={18} className="text-white" />
+              <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {EMOJIS[emojiIndex] === "BOT_ICON" ? (
+                  <div style={{ ...emojiAnimStyle, willChange: "transform" }}>
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center shadow-md" style={{ background: "#0a6e82" }}>
+                      <Bot size={18} className="text-white" />
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <span
-                  style={{
-                    fontSize: "28px",
-                    lineHeight: 1,
-                    display: "block",
-                    userSelect: "none",
-                    ...emojiAnimStyle,
-                  }}
-                >
-                  {EMOJIS[emojiIndex]}
-                </span>
-              )}
+                ) : (
+                  <span
+                    style={{
+                      fontSize: "28px",
+                      lineHeight: 1,
+                      display: "block",
+                      userSelect: "none",
+                      willChange: "transform",
+                      ...emojiAnimStyle,
+                    }}
+                  >
+                    {EMOJIS[emojiIndex]}
+                  </span>
+                )}
+              </div>
             </div>
             <div className="text-center">
               <p style={{ fontSize: "14px", fontWeight: 600, color: textPrimary, marginBottom: "4px" }}>
@@ -342,13 +375,16 @@ export function ChatPanel({
                   <Bot size={14} className="text-white" />
                 </div>
               )}
-              <div className={`flex flex-col gap-1 max-w-[75%] md:max-w-[50%] ${msg.role === "user" ? "items-end" : "items-start"}`}>
+              <div className={`flex flex-col gap-1 ${msg.role === "user" ? "items-end" : "items-start"}`}
+                style={{ maxWidth: isMobile ? "85%" : "50%" }}
+              >
                 <div
                   className="px-3.5 py-2.5 text-xs leading-relaxed"
                   style={{
                     borderRadius: msg.role === "user" ? "16px 16px 4px 16px" : "4px 16px 16px 16px",
                     background: msg.role === "user" ? userBubble : "transparent",
                     color: msg.role === "user" ? userBubbleText : (isDark ? "#cfe8f4" : "#1f2937"),
+                    boxShadow: msg.role === "user" ? (isDark ? "0 2px 8px rgba(0,0,0,0.35)" : "0 2px 8px rgba(0,0,0,0.10)") : "none",
                   }}
                 >
                   {msg.content}
@@ -429,6 +465,7 @@ export function ChatPanel({
                   activeIndex={activeCardIndices[msg.id] ?? 0}
                   onIndexChange={(i) => setActiveCardIndices(prev => ({ ...prev, [msg.id]: i }))}
                   isDark={isDark}
+                  onProductClick={onProductClick}
                 />
               </div>
             )}
@@ -452,20 +489,25 @@ export function ChatPanel({
 
       {/* ── Suggestion chips ── */}
       {messages.length > 0 && (
-        <div className={`px-4 pb-2 flex gap-2 overflow-x-auto scrollbar-none shrink-0 ${isMobile ? "pt-3" : "justify-center"}`}>
+        <div className={`px-4 pb-2 flex gap-2 overflow-x-auto scrollbar-none shrink-0 ${isMobile ? "pt-3" : "justify-center"}`}
+          style={{
+            paddingTop: isMobile ? undefined : "14px",
+            borderTop: `1px solid ${isDark ? "rgba(77,196,206,0.18)" : "rgba(10,110,130,0.13)"}`,
+          }}
+        >
           {suggestions.map((s) => (
             <button
               key={s}
               onClick={() => onSend(s)}
               className="px-3 py-1.5 rounded-xl border transition-all whitespace-nowrap shrink-0"
-              style={{ borderColor: border, fontSize: "10px", color: textSecondary, background: "transparent" }}
+              style={{ borderColor: accentDimBdr, fontSize: "10px", color: textSecondary, background: "transparent" }}
               onMouseEnter={e => {
                 (e.currentTarget as HTMLButtonElement).style.borderColor = accentColor;
                 (e.currentTarget as HTMLButtonElement).style.color = accentColor;
                 (e.currentTarget as HTMLButtonElement).style.background = accentDimBg;
               }}
               onMouseLeave={e => {
-                (e.currentTarget as HTMLButtonElement).style.borderColor = border;
+                (e.currentTarget as HTMLButtonElement).style.borderColor = accentDimBdr;
                 (e.currentTarget as HTMLButtonElement).style.color = textSecondary;
                 (e.currentTarget as HTMLButtonElement).style.background = "transparent";
               }}
@@ -557,7 +599,7 @@ export function ChatPanel({
                 style={{
                   lineHeight: "1.5",
                   cursor: "text",
-                  fontSize: isMobile ? "16px" : "12px",
+                  fontSize: isMobile ? "14px" : "12px",
                   color: textPrimary,
                   alignSelf: isMobile ? "center" : undefined,
                   maxHeight: isMobile ? "36px" : undefined,
@@ -715,7 +757,7 @@ export function ChatPanel({
         >
           <div
             style={{
-              background: bg,
+              background: isDark ? "#0c1c28" : "#ffffff",
               borderRadius: "20px 20px 0 0",
               height: "75vh",
               display: "flex",
@@ -793,7 +835,7 @@ export function ChatPanel({
                   justifyContent: "center",
                 }}
               >
-                <X size={16} />
+                <PhosphorX size={16} />
               </button>
             </div>
             {/* Drawer content */}
@@ -822,6 +864,7 @@ export function ChatPanel({
                       liked={true}
                       onLike={() => handleLike(`${sessionId}-${card.id}`)}
                       isDark={isDark}
+                      onProductClick={onProductClick}
                     />
                   ))}
                 </div>
@@ -834,9 +877,9 @@ export function ChatPanel({
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
+/* ────────────────────────────────────────────────────────────────────────────
    DarkModeSwitch — analog pill with Moon / Sun icons
-   ──────────────────────────────────��────────────────────────────────────────── */
+   ──────────────────────────────────────────────────────────────────────────── */
 function DarkModeSwitch({ isDark, onToggle }: { isDark: boolean; onToggle: () => void }) {
   return (
     <button
