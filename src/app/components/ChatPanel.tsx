@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import {
-  Mic, Sparkles, RotateCcw, Copy, ThumbsUp, ThumbsDown,
-  ChevronRight, ChevronLeft, Bot, Heart, X,
+  Mic, Sparkles, Copy, ThumbsUp, ThumbsDown,
+  ChevronRight, ChevronLeft, Bot, Heart,
 } from "lucide-react";
 import {
   ArrowUp, CloudSun, CloudFog, Sun, SunDim, CloudRain,
@@ -54,7 +54,7 @@ export function ChatPanel({
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [votes, setVotes] = useState<Record<string, "up" | "down" | null>>({});
-  const [isFocused, setIsFocused] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
   const [weatherInfo, setWeatherInfo] = useState<{ temp: number; code: number; sunrise: string; sunset: string } | null>(null);
   const [showFavDrawer, setShowFavDrawer] = useState(false);
   const [activeCardIndices, setActiveCardIndices] = useState<Record<string, number>>({});
@@ -169,6 +169,25 @@ export function ChatPanel({
 
   const handleVote = (msgId: string, vote: "up" | "down") => {
     setVotes(prev => ({ ...prev, [msgId]: prev[msgId] === vote ? null : vote }));
+  };
+
+  const handleCopy = async (msgId: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(msgId);
+      setTimeout(() => setCopied(null), 1800);
+    } catch {
+      // Fallback for browsers that block clipboard without HTTPS/user gesture
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.cssText = "position:fixed;opacity:0;pointer-events:none";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      setCopied(msgId);
+      setTimeout(() => setCopied(null), 1800);
+    }
   };
 
   useEffect(() => {
@@ -423,11 +442,16 @@ export function ChatPanel({
                     <div className="flex items-center gap-1">
                       <button
                         className="p-1 transition-colors rounded"
-                        style={{ color: textMuted }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = textSecondary; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = textMuted; }}
+                        style={{ color: copied === msg.id ? "#16a34a" : textMuted }}
+                        title="Kopyala"
+                        onClick={() => handleCopy(msg.id, msg.content)}
+                        onMouseEnter={e => { if (copied !== msg.id) (e.currentTarget as HTMLButtonElement).style.color = textSecondary; }}
+                        onMouseLeave={e => { if (copied !== msg.id) (e.currentTarget as HTMLButtonElement).style.color = textMuted; }}
                       >
-                        <Copy size={11} />
+                        {copied === msg.id
+                          ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                          : <Copy size={11} />
+                        }
                       </button>
                       <button
                         onClick={() => handleVote(msg.id, "up")}
@@ -577,6 +601,7 @@ export function ChatPanel({
             <div
               className={isMobile ? "flex flex-row items-center gap-2 px-3 shadow-sm cursor-text" : "flex flex-col gap-1 p-2 shadow-sm cursor-text"}
               onClick={() => textareaRef.current?.focus()}
+              onFocus={() => textareaRef.current?.focus()}
               style={{
                 position: "relative",
                 height: isMobile ? "54px" : "98px",
@@ -592,8 +617,6 @@ export function ChatPanel({
                 value={input}
                 onChange={handleInput}
                 onKeyDown={handleKeyDown}
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => setIsFocused(false)}
                 placeholder="Bir şeyler sorun..."
                 className="flex-1 w-full bg-transparent resize-none outline-none"
                 style={{
@@ -701,7 +724,7 @@ export function ChatPanel({
                 <Bot size={12} className="text-white" />
               </div>
               <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-emerald-400 rounded-full"
-                style={{ border: `1.5px solid ${bg}` }} />
+                style={{ border: `1.5px solid ${isDark ? "#132230" : "#f9fafb"}` }} />
             </div>
             <div>
               <p style={{ fontWeight: 700, fontSize: "11px", color: textPrimary, lineHeight: 1.2 }}>JULES</p>
