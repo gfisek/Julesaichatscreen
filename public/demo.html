@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JULES Widget — Demo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #0a1628 0%, #0c2233 100%);
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 24px;
+      padding: 32px 16px;
+    }
+    h1 { color: #4dc4ce; font-size: 28px; letter-spacing: -0.02em; }
+    p  { color: #6fa8bf; font-size: 14px; text-align: center; max-width: 500px; line-height: 1.6; }
+
+    .demo-btn {
+      padding: 14px 32px; border-radius: 12px; border: none;
+      background: linear-gradient(135deg, #1ba3b8, #0a6e82);
+      color: white; font-size: 15px; font-weight: 600;
+      cursor: pointer; letter-spacing: -0.01em;
+      box-shadow: 0 4px 20px rgba(27,163,184,0.4);
+      transition: opacity 0.2s, transform 0.2s;
+    }
+    .demo-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+
+    code {
+      background: rgba(77,196,206,0.1); border: 1px solid rgba(77,196,206,0.25);
+      color: #4dc4ce; padding: 12px 20px; border-radius: 8px;
+      font-size: 13px; line-height: 1.8;
+      display: block; white-space: pre; text-align: left;
+      max-width: 600px; width: 100%;
+    }
+    .label { color: #3d7089; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+  </style>
+</head>
+<body>
+  <h1>JULES Widget v2.0</h1>
+  <p>Vanilla JS Web Component — sıfır bağımlılık, tam izolasyon (Shadow DOM), ~100 KB (minify edilmemiş)</p>
+
+  <button class="demo-btn" onclick="document.querySelector('jules-widget').open()">
+    💬 JULES'ı Aç
+  </button>
+
+  <span class="label">Host sitede sadece bu kadar:</span>
+  <code>&lt;script src="/jules-widget.js"&gt;&lt;/script&gt;
+&lt;jules-widget
+  config-url="/jules-widget/config.json"
+  cards-url="/jules-widget/cards.json"
+&gt;&lt;/jules-widget&gt;
+
+&lt;button onclick="document.querySelector('jules-widget').open()"&gt;
+  Asistanı Aç
+&lt;/button&gt;</code>
+
+  <!-- Web Component -->
+  <script src="/jules-widget.js"></script>
+  <jules-widget
+    config-url="/jules-widget/config.json"
+    cards-url="/jules-widget/cards.json"
+  ></jules-widget>
+</body>
+</html>

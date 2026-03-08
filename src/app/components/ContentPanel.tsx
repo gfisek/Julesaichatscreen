@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import {
   ChevronRight,
   Heart,
@@ -6,57 +6,32 @@ import {
   Clock,
   ArrowUpRight,
 } from "lucide-react";
-
-export type CardItem = {
-  id: string;
-  type: "hotel" | "product" | "place" | "article";
-  title: string;
-  subtitle: string;
-  description: string;
-  image: string;
-  price?: string;
-  originalPrice?: string;
-  rating?: number;
-  reviews?: number;
-  badge?: string;
-  badgeColor?: string;
-  tags?: string[];
-  location?: string;
-  time?: string;
-  cta?: string;
-  productId?: string;
-};
-
-export type PanelSession = {
-  id: string;
-  cards: CardItem[];
-  title: string;
-  timestamp: Date;
-};
+import { useJulesContext } from "../context/JulesContext";
+// CardItem ve PanelSession artık types/jules.ts'de; backward compat için re-export yapılıyor.
+import type { CardItem, PanelSession } from "../types/jules";
+export type { CardItem, PanelSession } from "../types/jules";
 
 type Props = {
   sessions: PanelSession[];
   activeSessionId: string | null;
   onClose: () => void;
   isMobile?: boolean;
-  likedCards: Set<string>;
-  onLikedCardsChange: (updater: (prev: Set<string>) => Set<string>) => void;
   scrollToSessionId?: string | null;
   onScrollHandled?: () => void;
-  isDark: boolean;
   onProductClick?: (productId: string) => void;
 };
 
 export function ContentPanel({
-  sessions, activeSessionId, onClose, isMobile, likedCards,
-  onLikedCardsChange, scrollToSessionId, onScrollHandled, isDark, onProductClick,
+  sessions, activeSessionId, onClose, isMobile,
+  scrollToSessionId, onScrollHandled, onProductClick,
 }: Props) {
+  const { isDark, likedCards, onLikedCardsChange } = useJulesContext();
   const [showFavorites, setShowFavorites] = useState(false);
   const [activeCardIndices, setActiveCardIndices] = useState<Record<string, number>>({});
   const [heartHover, setHeartHover] = useState(false);
-  const bottomRef        = useRef<HTMLDivElement>(null);
-  const activeRef        = useRef<HTMLDivElement>(null);
-  const sessionRefs      = useRef<Record<string, HTMLDivElement | null>>({});
+  const bottomRef          = useRef<HTMLDivElement>(null);
+  const activeRef          = useRef<HTMLDivElement>(null);
+  const sessionRefs        = useRef<Record<string, HTMLDivElement | null>>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   /* ── Theme tokens ── */
@@ -66,9 +41,31 @@ export function ContentPanel({
   const border      = isDark ? "#1d3547" : "#e5e7eb";
   const textPrimary = isDark ? "#cfe8f4" : "#111827";
   const textMuted   = isDark ? "#3d7089" : "#9ca3af";
-  const accentColor = isDark ? "#4dc4ce" : "#0a6e82";
-  const accentDimBg  = isDark ? "rgba(77,196,206,0.10)" : "#e6f7f9";
+  const accentColor = isDark ? "var(--jules-accent-light)" : "var(--jules-secondary)";
+  const accentDimBg  = isDark ? "rgba(77,196,206,0.10)" : "var(--jules-accent-bg)";
   const accentDimBdr = isDark ? "rgba(77,196,206,0.25)" : "#b2e4ea";
+
+  // useMemo: sessions veya likedCards değişmeden yeniden hesaplanmaz
+  const totalResults = useMemo(() =>
+    sessions.reduce((sum, s) => sum + s.cards.length, 0),
+    [sessions]
+  );
+
+  const totalFavCount = useMemo(() =>
+    sessions.reduce((sum, s) =>
+      sum + s.cards.filter(c => likedCards.has(`${s.id}-${c.id}`)).length, 0
+    ),
+    [sessions, likedCards]
+  );
+
+  const allFavCards = useMemo(() =>
+    sessions.flatMap(s =>
+      s.cards
+        .filter(c => likedCards.has(`${s.id}-${c.id}`))
+        .map(c => ({ card: c, sessionId: s.id, sessionTitle: s.title }))
+    ),
+    [sessions, likedCards]
+  );
 
   useEffect(() => {
     if (sessions.length > 0) {
@@ -98,20 +95,8 @@ export function ContentPanel({
     });
   };
 
-  const totalFavCount = sessions.reduce((sum, s) =>
-    sum + s.cards.filter(c => likedCards.has(`${s.id}-${c.id}`)).length, 0
-  );
-
   const formatTime = (date: Date) =>
     date.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
-
-  const totalResults = sessions.reduce((sum, s) => sum + s.cards.length, 0);
-
-  const allFavCards = sessions.flatMap(s =>
-    s.cards
-      .filter(c => likedCards.has(`${s.id}-${c.id}`))
-      .map(c => ({ card: c, sessionId: s.id, sessionTitle: s.title }))
-  );
 
   return (
     <div className="flex flex-col h-full" style={{ background: bg, transition: "background 0.3s" }}>
@@ -119,18 +104,18 @@ export function ContentPanel({
       {/* ── Header ── */}
       <div
         className="shrink-0"
-        style={{ background: bgHeader, borderBottom: `1px solid ${border}`, padding: isMobile ? "8px 14px" : "14px 20px", transition: "background 0.3s, border-color 0.3s" }}
+        style={{ background: bgHeader, borderBottom: `1px solid ${border}`, padding: isMobile ? "8px 14px" : "14px 20px", height: isMobile ? undefined : "52px", boxSizing: "border-box", transition: "background 0.3s, border-color 0.3s" }}
       >
         <div className="flex items-center gap-2">
           <button
             onClick={onClose}
             className="flex items-center justify-center shrink-0 transition-all rounded-lg"
-            style={{ width: "24px", height: "24px", color: accentColor, background: accentDimBg, border: `1px solid ${accentDimBdr}`, cursor: "pointer" }}
+            style={{ width: "24px", height: "23px", color: accentColor, background: accentDimBg, border: `1px solid ${accentDimBdr}`, cursor: "pointer" }}
             title="Sonuçları gizle"
             onMouseEnter={e => {
-              (e.currentTarget as HTMLButtonElement).style.background = "#0a6e82";
+              (e.currentTarget as HTMLButtonElement).style.background = "var(--jules-secondary)";
               (e.currentTarget as HTMLButtonElement).style.color = "#ffffff";
-              (e.currentTarget as HTMLButtonElement).style.borderColor = "#0a6e82";
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--jules-secondary)";
             }}
             onMouseLeave={e => {
               (e.currentTarget as HTMLButtonElement).style.background = accentDimBg;
@@ -138,15 +123,15 @@ export function ContentPanel({
               (e.currentTarget as HTMLButtonElement).style.borderColor = accentDimBdr;
             }}
           >
-            <ChevronRight size={14} />
+            <ChevronRight size={12} />
           </button>
 
           <div style={{ width: "1px", height: "16px", background: border, flexShrink: 0 }} />
 
           <div className="flex items-center gap-2 min-w-0 flex-1 justify-end">
             <Sparkles size={10} style={{ color: accentColor, flexShrink: 0 }} />
-            <span style={{ fontSize: "10px", fontWeight: 600, color: accentColor, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
-              AI Sonuçları
+            <span style={{ fontSize: "10px", fontWeight: 600, color: accentColor, letterSpacing: "0.08em", whiteSpace: "nowrap" }}>
+              SONUÇLAR
             </span>
             <span style={{ fontSize: "9px", color: border }}>·</span>
             <span style={{ fontSize: "11px", color: textMuted, whiteSpace: "nowrap" }}>
@@ -196,7 +181,7 @@ export function ContentPanel({
       </div>
 
       {/* ── Session history ─ */}
-      <div className="flex-1 overflow-y-auto" ref={scrollContainerRef} style={{ colorScheme: isDark ? "dark" : "light" }}>
+      <div className="flex-1 min-h-0 overflow-y-auto" ref={scrollContainerRef} style={{ colorScheme: isDark ? "dark" : "light", overscrollBehavior: "contain" }}>
         {sessions.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6">
             <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: isDark ? "#1a3247" : "#f3f4f6" }}>
@@ -214,8 +199,8 @@ export function ContentPanel({
               style={{ background: bgSticky, borderBottom: `1px solid ${border}` }}
             >
               <Heart size={10} style={{ color: "#f87171" }} />
-              <span style={{ fontSize: "10px", fontWeight: 600, letterSpacing: "0.06em", color: "#f87171", textTransform: "uppercase" }}>
-                Favorilerim
+              <span style={{ fontSize: "10px", fontWeight: 600, letterSpacing: "0.06em", color: "#f87171" }}>
+                FAVORİLERİM
               </span>
               <div className="flex-1 h-px" style={{ background: border }} />
               <span style={{ fontSize: "10px", color: textMuted }}>{totalFavCount} kart</span>
@@ -238,7 +223,8 @@ export function ContentPanel({
                   }}
                   activeIndex={activeCardIndices["favs"] ?? 0}
                   onIndexChange={(i) => setActiveCardIndices(prev => ({ ...prev, favs: i }))}
-                  isDark={isDark}
+                  onProductClick={onProductClick}
+                  isMobile={isMobile}
                 />
               ) : (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", columnGap: "12px", rowGap: "35px" }}>
@@ -248,7 +234,6 @@ export function ContentPanel({
                       card={card}
                       liked={true}
                       onLike={() => toggleLike(`${sessionId}-${card.id}`)}
-                      isDark={isDark}
                       onProductClick={onProductClick}
                     />
                   ))}
@@ -278,7 +263,7 @@ export function ContentPanel({
                 <div className="flex items-center gap-1.5">
                   <Clock size={10} style={{ color: isActive ? accentColor : textMuted }} />
                   <span
-                    className="tracking-widest uppercase"
+                    className="tracking-widest"
                     style={{ fontSize: "10px", fontWeight: 600, letterSpacing: "0.06em", color: isActive ? accentColor : textMuted }}
                   >
                     {formatTime(session.timestamp)}
@@ -286,10 +271,10 @@ export function ContentPanel({
                 </div>
                 <div className="flex-1 h-px" style={{ background: border }} />
                 <span
-                  className="uppercase tracking-widest"
+                  className="tracking-widest"
                   style={{ fontSize: "10px", fontWeight: 600, letterSpacing: "0.06em", color: isActive ? accentColor : textMuted }}
                 >
-                  {session.title}
+                  {session.title.toLocaleUpperCase('tr-TR')}
                 </span>
                 {isActive && (
                   <div className="w-1.5 h-1.5 rounded-full" style={{ background: accentColor }} />
@@ -304,7 +289,8 @@ export function ContentPanel({
                   onLike={toggleLike}
                   activeIndex={activeCardIndices[session.id] ?? 0}
                   onIndexChange={(i) => setActiveCardIndices(prev => ({ ...prev, [session.id]: i }))}
-                  isDark={isDark}
+                  onProductClick={onProductClick}
+                  isMobile={isMobile}
                 />
               ) : (
                 <div className="p-4">
@@ -317,7 +303,6 @@ export function ContentPanel({
                           card={card}
                           liked={likedCards.has(likeKey)}
                           onLike={() => toggleLike(likeKey)}
-                          isDark={isDark}
                           onProductClick={onProductClick}
                         />
                       );
@@ -325,8 +310,6 @@ export function ContentPanel({
                   </div>
                 </div>
               )}
-
-              {!isLast && <div className="mx-5 mb-1" style={{ borderTop: `1px solid ${border}` }} />}
             </div>
           );
         })}
@@ -341,7 +324,7 @@ export function ContentPanel({
    MobileCarousel
    ───────────────────────────────────────────────────────────────────────────── */
 export function MobileCarousel({
-  cards, sessionId, likedCards, onLike, activeIndex, onIndexChange, isDark, onProductClick,
+  cards, sessionId, likedCards, onLike, activeIndex, onIndexChange, onProductClick, isMobile,
 }: {
   cards: CardItem[];
   sessionId: string;
@@ -349,11 +332,12 @@ export function MobileCarousel({
   onLike: (key: string) => void;
   activeIndex: number;
   onIndexChange: (i: number) => void;
-  isDark: boolean;
   onProductClick?: (productId: string) => void;
+  isMobile?: boolean;
 }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const cardRefs  = useRef<(HTMLDivElement | null)[]>([]);
+  const { isDark } = useJulesContext();
+  const scrollRef  = useRef<HTMLDivElement>(null);
+  const cardRefs   = useRef<(HTMLDivElement | null)[]>([]);
 
   /* Scroll position → closest card index */
   const handleScroll = () => {
@@ -382,7 +366,7 @@ export function MobileCarousel({
     onIndexChange(i);
   };
 
-  const accentColor = isDark ? "#4dc4ce" : "#0a6e82";
+  const accentColor = isDark ? "var(--jules-accent-light)" : "var(--jules-secondary)";
 
   return (
     <div className="flex flex-col items-center py-3 gap-2.5">
@@ -403,6 +387,7 @@ export function MobileCarousel({
           scrollPaddingLeft: "14%",
           msOverflowStyle: "none",
           scrollbarWidth: "none",
+          alignItems: "stretch",
         }}
         className="hide-scrollbar"
       >
@@ -412,14 +397,14 @@ export function MobileCarousel({
             <div
               key={card.id}
               ref={(el) => { cardRefs.current[i] = el; }}
-              style={{ flexShrink: 0, width: "72%", scrollSnapAlign: "center" }}
+              style={{ flexShrink: 0, width: "72%", scrollSnapAlign: "center", display: "flex", flexDirection: "column" }}
             >
               <CardView
                 card={card}
                 liked={likedCards.has(likeKey)}
                 onLike={() => onLike(likeKey)}
-                isDark={isDark}
                 onProductClick={onProductClick}
+                isMobile={isMobile}
               />
             </div>
           );
@@ -448,17 +433,19 @@ export function MobileCarousel({
   );
 }
 
-/* ────────────────────────────────────────────────────────────────────────────
+/* ───────────────────────────────────────────────────────────────────────────
    CardView
    ───────────────────────────────────────────────────────────────────────────── */
-export function CardView({ card, liked, onLike, isDark, onProductClick }: {
+export function CardView({ card, liked, onLike, onProductClick, isMobile }: {
   card: CardItem;
   liked: boolean;
   onLike: () => void;
-  isDark: boolean;
   onProductClick?: (productId: string) => void;
+  isMobile?: boolean;
 }) {
+  const { isDark } = useJulesContext();
   const [hoverCta, setHoverCta] = useState(false);
+  const [hoverHeart, setHoverHeart] = useState(false);
 
   const bgCard       = isDark ? "#142230" : "#ffffff";
   const borderCard   = isDark ? "#1d3547" : "#e5e7eb";
@@ -467,8 +454,107 @@ export function CardView({ card, liked, onLike, isDark, onProductClick }: {
   const textDesc     = isDark ? "#cfe8f4" : "#111827";
   const ctaBorder    = isDark ? "#2a4a5e" : "#d1d5db";
   const ctaText      = isDark ? "#6fa8bf" : "#555";
-  const accentColor  = isDark ? "#4dc4ce" : "#0a6e82";
+  const accentColor  = isDark ? "var(--jules-accent-light)" : "var(--jules-secondary)";
 
+  /* ── CTA button — reused in both variants ── */
+  const ctaButton = (
+    <button
+      onMouseEnter={() => setHoverCta(true)}
+      onMouseLeave={() => setHoverCta(false)}
+      className="inline-flex items-center gap-1 transition-all"
+      style={{
+        borderRadius: "3px",
+        fontSize: "10px",
+        fontWeight: 600,
+        letterSpacing: "0.03em",
+        padding: "4px 8px",
+        border: `1px solid ${hoverCta ? accentColor : ctaBorder}`,
+        background: hoverCta ? accentColor : "transparent",
+        color: hoverCta ? "white" : ctaText,
+        transition: "all 0.15s",
+      }}
+      onClick={() => card.productId && onProductClick?.(card.productId)}
+    >
+      {card.cta || "İncele"}
+      <ArrowUpRight size={9} />
+    </button>
+  );
+
+  /* ── No-image variant ── */
+  if (card.noImage) {
+    return (
+      <div
+        className="overflow-hidden flex flex-col group transition-colors"
+        style={{
+          borderRadius: "3px",
+          background: bgCard,
+          border: `1px solid ${borderCard}`,
+          transition: "background 0.3s, border-color 0.2s",
+          height: "100%",
+        }}
+        onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = borderHover; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = borderCard; }}
+      >
+        {/* Content — fills the full card height, description expands to fill photo-card-equivalent space */}
+        <div className="flex flex-col flex-1 px-3 pb-3" style={{ gap: "10px", paddingTop: isMobile ? "19px" : "12px" }}>
+
+          {/* Row: badge + heart */}
+          <div className="flex items-center justify-between">
+            {card.badge ? (
+              <div className="flex items-center gap-1.5">
+                <div className="w-0.5 h-2.5" style={{ background: "var(--jules-accent-light)", borderRadius: "1px" }} />
+                <span
+                  className="uppercase"
+                  style={{ fontSize: "9px", fontWeight: 700, letterSpacing: "0.08em", color: "var(--jules-accent-light)" }}
+                >
+                  {card.badge.toLocaleUpperCase('tr-TR')}
+                </span>
+              </div>
+            ) : <div />}
+            <button
+              onClick={onLike}
+              className="flex items-center justify-center transition-colors"
+              style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
+              onMouseEnter={() => setHoverHeart(true)}
+              onMouseLeave={() => setHoverHeart(false)}
+            >
+              <Heart
+                size={18}
+                style={{
+                  color: liked ? "#f87171" : hoverHeart ? "#fca5a5" : (isDark ? "#2a4a5e" : "#d1d5db"),
+                  fill: liked ? "#f87171" : hoverHeart ? "rgba(252,165,165,0.25)" : "none",
+                  transition: "all 0.15s",
+                }}
+              />
+            </button>
+          </div>
+
+          {/* Title */}
+          <p style={{ fontWeight: 600, fontSize: "12px", letterSpacing: "-0.01em", color: textPrimary, lineHeight: 1.4 }}>
+            {card.title}
+          </p>
+
+          {/* Description — character-limited, same rhythm as photo card */}
+          <p
+            style={{
+              fontSize: "11px",
+              color: textDesc,
+              lineHeight: "1.6",
+            }}
+          >
+            {card.description.length > 362
+              ? card.description.slice(0, 362).trimEnd() + "…"
+              : card.description}
+          </p>
+
+          {/* CTA */}
+          <div>{ctaButton}</div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── Default photo variant ── */
   return (
     <div
       className="overflow-hidden flex flex-col group transition-colors"
@@ -477,6 +563,7 @@ export function CardView({ card, liked, onLike, isDark, onProductClick }: {
         background: bgCard,
         border: `1px solid ${borderCard}`,
         transition: "background 0.3s, border-color 0.2s",
+        height: "100%",
       }}
       onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = borderHover; }}
       onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = borderCard; }}
@@ -492,13 +579,16 @@ export function CardView({ card, liked, onLike, isDark, onProductClick }: {
           onClick={onLike}
           className="absolute bottom-2 right-2 w-6 h-6 flex items-center justify-center transition-colors"
           style={{ background: "transparent", border: "none", padding: 0 }}
+          onMouseEnter={() => setHoverHeart(true)}
+          onMouseLeave={() => setHoverHeart(false)}
         >
           <Heart
-            size={16}
+            size={18}
             style={{
-              color: liked ? "#f87171" : "white",
-              fill: liked ? "#f87171" : "white",
-              filter: liked ? "none" : "drop-shadow(0 1px 2px rgba(0,0,0,0.35))",
+              color: liked ? "#f87171" : hoverHeart ? "#fca5a5" : "white",
+              fill:  liked ? "#f87171" : hoverHeart ? "rgba(252,165,165,0.25)" : "none",
+              filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.35))",
+              transition: "color 0.15s, fill 0.15s",
             }}
           />
         </button>
@@ -508,12 +598,12 @@ export function CardView({ card, liked, onLike, isDark, onProductClick }: {
       <div className="flex flex-col gap-2.5 px-3 pt-3 pb-3">
         {card.badge && (
           <div className="flex items-center gap-1.5">
-            <div className="w-0.5 h-2.5" style={{ background: "#4dc4ce", borderRadius: "1px" }} />
+            <div className="w-0.5 h-2.5" style={{ background: "var(--jules-accent-light)", borderRadius: "1px" }} />
             <span
               className="uppercase"
-              style={{ fontSize: "9px", fontWeight: 700, letterSpacing: "0.08em", color: "#4dc4ce" }}
+              style={{ fontSize: "9px", fontWeight: 700, letterSpacing: "0.08em", color: "var(--jules-accent-light)" }}
             >
-              {card.badge}
+              {card.badge.toLocaleUpperCase('tr-TR')}
             </span>
           </div>
         )}
@@ -536,28 +626,7 @@ export function CardView({ card, liked, onLike, isDark, onProductClick }: {
           {card.description}
         </p>
 
-        <div>
-          <button
-            onMouseEnter={() => setHoverCta(true)}
-            onMouseLeave={() => setHoverCta(false)}
-            className="inline-flex items-center gap-1 transition-all"
-            style={{
-              borderRadius: "3px",
-              fontSize: "10px",
-              fontWeight: 600,
-              letterSpacing: "0.03em",
-              padding: "4px 8px",
-              border: `1px solid ${hoverCta ? accentColor : ctaBorder}`,
-              background: hoverCta ? accentColor : "transparent",
-              color: hoverCta ? "white" : ctaText,
-              transition: "all 0.15s",
-            }}
-            onClick={() => card.productId && onProductClick?.(card.productId)}
-          >
-            {card.cta || "İncele"}
-            <ArrowUpRight size={9} />
-          </button>
-        </div>
+        <div>{ctaButton}</div>
       </div>
     </div>
   );

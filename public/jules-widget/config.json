@@ -1,0 +1,37 @@
+{
+  "_comment": "Jules widget yapılandırması. Backend bu dosyayı güncelleyerek renk, font, branding ve içerik ayarlarını değiştirebilir. React build'e dokunmadan geçerli olur.",
+
+  "branding": {
+    "name": "JULES",
+    "poweredBy": "Powered by Creator AI",
+    "poweredByUrl": "https://creator.com.tr"
+  },
+
+  "colors": {
+    "_comment": "Ana renk paleti. Widget açılışında CSS variable olarak uygulanır.",
+    "primary":      "#1c3d54",
+    "secondary":    "#0a6e82",
+    "accent":       "#1ba3b8",
+    "accentLight":  "#4dc4ce",
+    "accentBg":     "#e6f7f9"
+  },
+
+  "font": {
+    "_comment": "Widget genelinde kullanılacak font ailesi. 'inherit' host sitenin fontunu devralır.",
+    "family": "inherit"
+  },
+
+  "suggestions": [
+    "İstanbul'da otel öner",
+    "Bütçeme uygun seçenekler",
+    "En iyi restoranlar",
+    "Çok satan ürünler"
+  ],
+
+  "defaultReplies": [
+    "Anlıyorum! Size daha iyi yardımcı olabilmem için biraz daha bilgi verir misiniz? Örneğin bütçeniz veya tercih ettiğiniz konum nedir?",
+    "Harika bir soru! Bu konuda size yardımcı olmak için birkaç seçenek hazırlıyorum...",
+    "Tabii ki! Bu konuda en güncel ve güvenilir bilgileri getiriyorum, bir an lütfen.",
+    "Mükemmel! Sizin için en uygun seçenekleri analiz ediyorum. Tercihlerinizi öğrenmek ister misiniz?"
+  ]
+}
