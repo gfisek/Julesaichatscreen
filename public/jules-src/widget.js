@@ -42,6 +42,7 @@ class JulesWidget extends HTMLElement {
     // ── State ──────────────────────────────────────────────────────────────────
     this._st = {
       isOpen:              false,
+      isMinimized:         true,   // Default: MiniJules görünür
       messages:            [],
       isTyping:            false,
       activeCardMsgId:     null,
@@ -74,6 +75,10 @@ class JulesWidget extends HTMLElement {
     this._preVoiceText  = '';
     this._refs          = {};
     this._twStop        = null;
+    this._lastIsCompact = null;
+    this._tCache        = null;    // _T() sonucu — CSS var ref'leri sabit, tek seferlik cache
+    this._weatherAbort  = null;    // AbortController — fetch iptal için
+    this._favCountCache = undefined; // _getFavCount() cache — like'da invalidate edilir
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────────
@@ -93,18 +98,88 @@ class JulesWidget extends HTMLElement {
   disconnectedCallback() {
     window.removeEventListener('resize', this._resizeBound);
     Object.keys(this._timers).forEach(k => clearTimeout(this._timers[k]));
+    if (this._weatherAbort) { this._weatherAbort.abort(); this._weatherAbort = null; }
   }
 
   attributeChangedCallback(name, oldVal, newVal) {
-    if (!this._refs.overlay) return;
+    // Guard: Shadow DOM henüz build edilmediyse işlem yapma
+    if (!this._refs.overlay && !this._shadow.getElementById('jw-mini')) return;
     if (name === 'open') { newVal !== null ? this.open() : this.close(); }
     if (name === 'dark') { this._st.isDark = newVal !== null; this._applyTheme(); }
   }
 
   // ── Public API ───────────────────────────────────────────────────────────────
-  open()   { this._st.isOpen = true;  this._applyOpenState(); }
-  close()  { this._st.isOpen = false; this._applyOpenState(); this.dispatchEvent(new CustomEvent('jules:close')); }
-  toggle() { this._st.isOpen ? this.close() : this.open(); }
+  open()   { this.expand(); }
+  close()  { this.minimize(); }
+  toggle() { this._st.isMinimized ? this.expand() : this.minimize(); }
+
+  // ── Minimize: Jules yukarı kayarak MiniJules'a dönüşür ────────────────────
+  minimize() {
+    if (this._st.isMinimized) return;
+
+    const box     = this._refs.box;
+    const overlay = this._refs.overlay;
+
+    if (box) {
+      // Jules box'ı fiziksel ivmeyle yukarı fırlat
+      box.style.transition = 'transform 350ms cubic-bezier(0.4,0,0.9,0.08), opacity 300ms ease';
+      box.style.transform  = 'translateY(-160px)';
+      box.style.opacity    = '0';
+
+      // Overlay arka planını soldur
+      if (overlay) {
+        overlay.style.transition   = 'background 300ms ease, backdrop-filter 300ms ease';
+        overlay.style.background   = 'transparent';
+        overlay.style.backdropFilter = 'none';
+        overlay.style.webkitBackdropFilter = 'none';
+      }
+
+      setTimeout(() => {
+        this._st.isOpen      = false;
+        this._st.isMinimized = true;
+        document.body.style.overflow = this._bodyOverflow || '';
+        this._bodyOverflow = '';
+        this.dispatchEvent(new CustomEvent('jules:minimize'));
+        this._build();
+      }, 350);
+    } else {
+      this._st.isOpen      = false;
+      this._st.isMinimized = true;
+      document.body.style.overflow = this._bodyOverflow || '';
+      this._bodyOverflow = '';
+      this.dispatchEvent(new CustomEvent('jules:minimize'));
+      this._build();
+    }
+  }
+
+  // ── Expand: MiniJules'tan Jules'a yaylı spring ile aşağı iner ────────────
+  expand() {
+    if (!this._st.isMinimized) return;
+
+    if (this._twStop) { this._twStop(); this._twStop = null; }
+
+    this._st.isMinimized = false;
+    this._st.isOpen      = true;
+    this._bodyOverflow   = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    this._build();
+
+    // Yukarıdan spring ile aşağı gelsin — fiziksel hissettirsin
+    const box = this._refs.box;
+    if (box) {
+      box.style.transform  = 'translateY(-160px)';
+      box.style.opacity    = '0';
+      box.style.transition = 'none';
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          box.style.transition = 'transform 420ms cubic-bezier(0.34,1.28,0.64,1), opacity 280ms ease';
+          box.style.transform  = 'translateY(0)';
+          box.style.opacity    = '1';
+        });
+      });
+    }
+  }
 
   // ── Data Loading ──────────────────────────────────────────────────────────────
   async _loadData() {
@@ -143,9 +218,13 @@ class JulesWidget extends HTMLElement {
   /**
    * _T() — CSS custom property referansları döndürür.
    * :host / :host([data-dark]) kuralları gerçek değerleri sağlar.
+   *
+   * Tüm değerler sabit CSS var() string'leri — tarayıcı cascade'de çözümlenir.
+   * Nesne bir kez oluşturulur ve instance ömrü boyunca cache'de tutulur.
    */
   _T() {
-    return {
+    if (this._tCache) return this._tCache;
+    this._tCache = {
       bg:            'var(--jw-bg)',
       outerBg:       'var(--jw-outer-bg)',
       border:        'var(--jw-border)',
@@ -164,6 +243,7 @@ class JulesWidget extends HTMLElement {
       bgSticky:      'var(--jw-sticky-bg)',
       bgHeader:      'var(--jw-header-bg)',
     };
+    return this._tCache;
   }
 
   /**
@@ -185,6 +265,10 @@ class JulesWidget extends HTMLElement {
     // 3. Orbit ring sınıfı
     if (this._refs.inputOrbit) {
       this._refs.inputOrbit.className = isDark ? 'jw-orbit-dark' : 'jw-orbit-light';
+    }
+    // MiniJules orbit ring
+    if (this._refs.miniOrbitBg) {
+      this._refs.miniOrbitBg.className = isDark ? 'jw-orbit-dark' : 'jw-orbit-light';
     }
 
     // 4. Dark switch → yerinde yeniden kur
@@ -208,6 +292,7 @@ class JulesWidget extends HTMLElement {
 
   // ── Open/Close ────────────────────────────────────────────────────────────────
   _applyOpenState() {
+    if (this._st.isMinimized) return; // MiniJules modu — overlay yok
     const ov = this._refs.overlay;
     if (!ov) return;
     const st = this._st;
@@ -240,16 +325,40 @@ class JulesWidget extends HTMLElement {
 
   // ── Main Build ────────────────────────────────────────────────────────────────
   _build() {
-    if (this._twStop) { this._twStop(); this._twStop = null; }
-
     const sh = this._shadow;
+    const st = this._st;
+
+    // ── Input area reuse logic ──
+    const isCompact = st.isMobile || st.isPinnedRight;
+    const canReuseInput = !st.isMinimized && this._refs.inputArea &&
+      this._lastIsCompact === isCompact;
+
+    // Stop typewriter only when input will be rebuilt
+    if (!canReuseInput) {
+      if (this._twStop) { this._twStop(); this._twStop = null; }
+    }
+
+    // Detach reusable input area before clearing Shadow DOM
+    if (canReuseInput && this._refs.inputArea.isConnected) {
+      this._refs.inputArea.remove();
+    }
+
     sh.innerHTML = '';
 
     const T  = this._T();
-    const st = this._st;
 
     const host = this._shadow.host;
     st.isDark ? host.setAttribute('data-dark', '') : host.removeAttribute('data-dark');
+
+    // ── MiniJules modu: sadece küçük bar ────────────────────────────────────
+    if (st.isMinimized) {
+      sh.appendChild(this._buildMiniJules());
+      this._lastIsCompact = null;
+      this._refs.contentPanel = null;
+      this._refs.chatPanel = null;
+      this._refs.inner = null;
+      return;
+    }
 
     // Overlay
     const overlay = document.createElement('div');
@@ -293,10 +402,15 @@ class JulesWidget extends HTMLElement {
       inner.style.flexDirection = 'row';
       inner.style.maxWidth = '1200px';
     }
+    this._refs.inner = inner;
 
     // Content panel
     if (st.isPanelOpen && !st.isPinnedRight) {
-      inner.appendChild(this._buildContentPanel());
+      const cp = this._buildContentPanel();
+      this._refs.contentPanel = cp;
+      inner.appendChild(cp);
+    } else {
+      this._refs.contentPanel = null;
     }
 
     // Chat panel
@@ -311,7 +425,8 @@ class JulesWidget extends HTMLElement {
       sh.appendChild(this._buildFavDrawer());
     }
 
-    this._scrollToBottom();
+    this._lastIsCompact = isCompact;
+    this._scrollToLastMessage();
   }
 }
 

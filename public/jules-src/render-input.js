@@ -48,7 +48,7 @@ export function _buildInputArea(isCompact) {
   ta.rows = 1;
   ta.placeholder = 'Bir şeyler sorun...';
   ta.value = st.inputValue || '';
-  const taFontSize = st.isMobile ? '16' : (isCompact ? '14' : '12');
+  const taFontSize = st.isMobile ? '16' : '14';
   const taMaxH = st.isMobile ? '49px' : (isCompact ? '36px' : 'none');
   ta.style.cssText = [
     'flex:1;font-size:' + taFontSize + 'px;color:' + T.textPrimary + ';',
@@ -104,11 +104,25 @@ export function _buildInputArea(isCompact) {
   this._refs.micBtn = micBtn;
   btnRow.appendChild(micBtn);
 
-  // Send button
+  // Send button — bare icon + hover (React JulesOrbitInput ile tutarlı)
+  const hasInitVal = !!(st.inputValue && st.inputValue.trim());
   const sendBtn = document.createElement('button');
   sendBtn.className = 'jw-btn';
-  sendBtn.innerHTML = ICO.ArrowUp(13);
-  sendBtn.style.cssText = 'width:63px;padding:5px 0;border-radius:7px;background:var(--jules-secondary);color:white;opacity:' + (st.inputValue && st.inputValue.trim() ? '1' : '0.4') + ';transition:opacity 0.15s;cursor:' + (st.inputValue && st.inputValue.trim() ? 'pointer' : 'not-allowed') + ';';
+  sendBtn.innerHTML = ICO.Send(isCompact ? 16 : 19);
+  sendBtn.style.cssText = [
+    'padding:6px;border-radius:8px;',
+    'display:flex;align-items:center;justify-content:center;line-height:0;',
+    'color:' + T.textMuted + ';background:transparent;',
+    'opacity:' + (hasInitVal ? '1' : '0.4') + ';',
+    'cursor:' + (hasInitVal ? 'pointer' : 'not-allowed') + ';',
+    'transition:color 0.15s,background 0.15s,opacity 0.15s;',
+  ].join('');
+  sendBtn.addEventListener('mouseenter', () => {
+    if (ta.value.trim()) { sendBtn.style.color = T.accentColor; sendBtn.style.background = T.accentDimBg; }
+  });
+  sendBtn.addEventListener('mouseleave', () => {
+    sendBtn.style.color = T.textMuted; sendBtn.style.background = 'transparent';
+  });
   sendBtn.addEventListener('click', () => this._handleSend(ta.value));
   sendBtn.addEventListener('touchend', e => {
     e.preventDefault();
@@ -318,12 +332,13 @@ export function _buildPanelToggleSwitch() {
   btn.disabled = !hasSessions;
 
   const track = document.createElement('div');
+  track.dataset.ptTrack = '1'; // _patchPanelToggle() targeted update için marker
   track.style.cssText = [
     'position:relative;width:30px;height:16px;border-radius:3px;',
     'background:' + (isPanelOpen ? 'linear-gradient(180deg,var(--jules-secondary) 0%,var(--jules-accent) 100%)' : (st.isDark ? 'linear-gradient(180deg,#1a3247 0%,#1e3a55 100%)' : 'linear-gradient(180deg,#c0c0c0 0%,#d4d4d4 100%)')) + ';',
     'box-shadow:' + (isPanelOpen ? 'inset 0 2px 3px rgba(0,0,0,0.35),inset 0 -1px 1px rgba(255,255,255,0.12),0 0 6px rgba(10,110,130,0.3)' : 'inset 0 2px 3px rgba(0,0,0,0.22),inset 0 -1px 1px rgba(255,255,255,0.1)') + ';',
     'border:' + (isPanelOpen ? '1px solid #076575' : '1px solid ' + T.border) + ';',
-    'transition:background 0.2s,border-color 0.2s;',
+    'transition:background 0.2s,border-color 0.2s,box-shadow 0.2s;',
     'display:flex;align-items:center;justify-content:space-between;padding:0 3px;overflow:hidden;',
   ].join('');
 
@@ -338,6 +353,7 @@ export function _buildPanelToggleSwitch() {
   track.appendChild(rightLines);
 
   const thumb = document.createElement('div');
+  thumb.dataset.ptThumb = '1'; // _patchPanelToggle() targeted update için marker
   thumb.style.cssText = [
     'position:absolute;top:2px;',
     'left:' + (isPanelOpen ? '15px' : '2px') + ';',
@@ -352,7 +368,8 @@ export function _buildPanelToggleSwitch() {
   btn.appendChild(track);
 
   btn.addEventListener('click', () => {
-    if (!hasSessions) return;
+    // Closure yerine live state — hasSessions değişse bile doğru çalışır
+    if (!this._st.panelSessions.length) return;
     const isPanelNew = !this._st.isPanelOpen;
     thumb.style.left = isPanelNew ? '15px' : '2px';
     setTimeout(() => this._handleTogglePanel(), 220);

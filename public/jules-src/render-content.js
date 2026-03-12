@@ -79,7 +79,7 @@ export function _buildContentPanel() {
     favBtn.style.borderColor = (this._st.showFavoritesInPanel || fc > 0) ? '#f87171' : TT.border;
     favBtn.style.color = (this._st.showFavoritesInPanel || fc > 0) ? '#f87171' : TT.textMuted;
   });
-  favBtn.addEventListener('click', () => { st.showFavoritesInPanel = !st.showFavoritesInPanel; this._build(); });
+  favBtn.addEventListener('click', () => { st.showFavoritesInPanel = !st.showFavoritesInPanel; this._refreshContentPanelBody(); });
   cpStats.appendChild(favBtn);
 
   cpHRow.appendChild(cpStats);
@@ -119,7 +119,8 @@ export function _buildContentPanel() {
 
 // ── Favorites Section ──────────────────────────────────────────────────────────
 export function _buildFavoritesSection() {
-  const T = this._T();
+  const T  = this._T();
+  const st = this._st;
   const allFavs = this._getAllFavCards();
 
   const wrap = document.createElement('div');
@@ -136,7 +137,7 @@ export function _buildFavoritesSection() {
   grid.style.cssText = 'padding:16px;';
 
   if (allFavs.length === 0) {
-    grid.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 0;gap:12px;text-align:center;"><span style="color:' + T.border + ';">' + ICO.Heart(24) + '</span><p style="font-size:14px;color:' + T.textMuted + ';">Henüz favori eklemediniz</p></div>';
+    grid.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 0;gap:12px;text-align:center;"><span style="color:' + T.border + ';">' + ICO.Heart(24) + '</span><p style="font-size:14px;color:' + T.textMuted + ';margin-bottom:4px;">Henüz favori eklemediniz</p><p style="font-size:12px;color:' + (st.isDark ? '#2a4a5e' : '#d1d5db') + ';">Kartların üzerindeki ♥ ikonuna dokunun</p></div>';
   } else {
     const cardGrid = document.createElement('div');
     cardGrid.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);column-gap:12px;row-gap:35px;';
@@ -260,7 +261,7 @@ export function _buildCarousel(cards, sessionId) {
       st.activeCardIndices[sessionId] = closest;
       this._updateDots(dotEls, closest, T);
     }
-  });
+  }, { passive: true });
 
   wrap.appendChild(scrollEl);
   wrap.appendChild(dotsRow);
@@ -293,7 +294,7 @@ export function _buildCardView(card, sessionId, liked) {
     const topRow = document.createElement('div');
     topRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;';
     if (card.badge) {
-      topRow.innerHTML = '<div style="display:flex;align-items:center;gap:6px;"><div style="width:2px;height:10px;background:var(--jules-accent-light);border-radius:1px;"></div><span style="font-size:9px;font-weight:700;letter-spacing:0.08em;color:var(--jules-accent-light);">' + esc(card.badge.toLocaleUpperCase('tr-TR')) + '</span></div>';
+      topRow.innerHTML = '<div style="display:flex;align-items:center;gap:6px;"><div style="width:2px;height:10px;background:var(--jules-accent-light);border-radius:1px;"></div><span style="font-size:' + (st.isMobile ? '10px' : '9px') + ';font-weight:700;letter-spacing:0.08em;color:var(--jules-accent-light);">' + esc(card.badge.toLocaleUpperCase('tr-TR')) + '</span></div>';
     } else {
       topRow.innerHTML = '<div></div>';
     }
@@ -301,14 +302,14 @@ export function _buildCardView(card, sessionId, liked) {
     content.appendChild(topRow);
 
     const title = document.createElement('p');
-    title.style.cssText = 'font-weight:600;font-size:12px;letter-spacing:-0.01em;color:' + T.textPrimary + ';line-height:1.4;';
+    title.style.cssText = 'font-weight:600;font-size:' + (st.isMobile ? '13px' : '12px') + ';letter-spacing:-0.01em;color:' + T.textPrimary + ';line-height:1.4;';
     title.textContent = card.title;
     content.appendChild(title);
 
     const descWrap = document.createElement('div');
     descWrap.style.cssText = 'flex:1;overflow:hidden;';
     const desc = document.createElement('p');
-    desc.style.cssText = 'font-size:11px;color:' + T.textPrimary + ';line-height:1.6;display:-webkit-box;-webkit-line-clamp:11;-webkit-box-orient:vertical;overflow:hidden;';
+    desc.style.cssText = 'font-size:' + (st.isMobile ? '12px' : '11px') + ';color:' + T.textPrimary + ';line-height:1.6;display:-webkit-box;-webkit-line-clamp:11;-webkit-box-orient:vertical;overflow:hidden;';
     desc.textContent = card.description;
     descWrap.appendChild(desc);
     content.appendChild(descWrap);
@@ -338,16 +339,16 @@ export function _buildCardView(card, sessionId, liked) {
     contentBottom.style.cssText = 'display:flex;flex-direction:column;gap:10px;padding:12px;';
 
     if (card.badge) {
-      contentBottom.innerHTML = '<div style="display:flex;align-items:center;gap:6px;"><div style="width:2px;height:10px;background:var(--jules-accent-light);border-radius:1px;"></div><span style="font-size:9px;font-weight:700;letter-spacing:0.08em;color:var(--jules-accent-light);">' + esc(card.badge.toLocaleUpperCase('tr-TR')) + '</span></div>';
+      contentBottom.innerHTML = '<div style="display:flex;align-items:center;gap:6px;"><div style="width:2px;height:10px;background:var(--jules-accent-light);border-radius:1px;"></div><span style="font-size:' + (st.isMobile ? '10px' : '9px') + ';font-weight:700;letter-spacing:0.08em;color:var(--jules-accent-light);">' + esc(card.badge.toLocaleUpperCase('tr-TR')) + '</span></div>';
     }
 
     const title = document.createElement('p');
-    title.style.cssText = 'font-weight:600;font-size:12px;letter-spacing:-0.01em;color:' + T.textPrimary + ';line-height:1.3;';
+    title.style.cssText = 'font-weight:600;font-size:' + (st.isMobile ? '13px' : '12px') + ';letter-spacing:-0.01em;color:' + T.textPrimary + ';line-height:1.3;';
     title.textContent = card.title;
     contentBottom.appendChild(title);
 
     const desc = document.createElement('p');
-    desc.style.cssText = 'font-size:11px;color:' + T.textPrimary + ';line-height:1.6;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;';
+    desc.style.cssText = 'font-size:' + (st.isMobile ? '12px' : '11px') + ';color:' + T.textPrimary + ';line-height:1.6;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;';
     desc.textContent = card.description;
     contentBottom.appendChild(desc);
 
@@ -386,7 +387,7 @@ export function _buildCtaBtn(card) {
   const st = this._st;
   const btn = document.createElement('button');
   btn.className = 'jw-btn';
-  btn.style.cssText = 'display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;letter-spacing:0.03em;padding:4px 8px;border-radius:3px;border:1px solid ' + (st.isDark ? '#2a4a5e' : '#d1d5db') + ';color:' + (st.isDark ? '#6fa8bf' : '#555') + ';background:transparent;font-family:inherit;transition:all 0.15s;cursor:pointer;';
+  btn.style.cssText = 'display:inline-flex;align-items:center;gap:4px;font-size:' + (st.isMobile ? '11px' : '10px') + ';font-weight:600;letter-spacing:0.03em;padding:4px 8px;border-radius:3px;border:1px solid ' + (st.isDark ? '#2a4a5e' : '#d1d5db') + ';color:' + (st.isDark ? '#6fa8bf' : '#555') + ';background:transparent;font-family:inherit;transition:all 0.15s;cursor:pointer;';
   btn.innerHTML = esc(card.cta || 'İncele') + ICO.ArrowUpRight(9);
   btn.addEventListener('mouseenter', () => {
     const TT = this._T();
@@ -418,7 +419,7 @@ export function _buildFavDrawer() {
 
   const backdrop = document.createElement('div');
   backdrop.id = 'jw-fav-backdrop';
-  backdrop.addEventListener('click', () => { st.showFavDrawer = false; this._build(); });
+  backdrop.addEventListener('click', () => { this._hideFavDrawer(); });
 
   const drawer = document.createElement('div');
   drawer.id = 'jw-fav-drawer';
@@ -439,7 +440,7 @@ export function _buildFavDrawer() {
     if (dy > 0) { st.drawerDragY = dy; drawer.style.transform = 'translateY(' + dy + 'px)'; }
   }, { passive: true });
   handle.addEventListener('touchend', () => {
-    if (st.drawerDragY > 80) { st.showFavDrawer = false; st.drawerDragY = 0; this._build(); }
+    if (st.drawerDragY > 80) { this._hideFavDrawer(); }
     else { st.drawerDragY = 0; drawer.style.transform = 'translateY(0)'; }
   });
   drawer.appendChild(handle);
@@ -454,7 +455,7 @@ export function _buildFavDrawer() {
   closeDrawer.className = 'jw-btn';
   closeDrawer.innerHTML = ICO.PhosphorX(16);
   closeDrawer.style.cssText = 'color:' + T.textMuted + ';background:' + (st.isDark ? '#1a3247' : '#f3f4f6') + ';border-radius:8px;padding:5px;';
-  closeDrawer.addEventListener('click', () => { st.showFavDrawer = false; this._build(); });
+  closeDrawer.addEventListener('click', () => { this._hideFavDrawer(); });
   dHeader.appendChild(closeDrawer);
   drawer.appendChild(dHeader);
 

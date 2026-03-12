@@ -1,10 +1,10 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useLayoutEffect } from "react";
 import { ChatPanel, type Message } from "./components/ChatPanel";
 import { ContentPanel, type CardItem, type PanelSession } from "./components/ContentPanel";
+import { MiniJules } from "./components/MiniJules";
 import { JulesContext } from "./context/JulesContext";
 import {
   JULES_CONFIG, JULES_CARDS,
-  type JulesConfig, type JulesCardsData,
 } from "../data/jules-data";
 
 // Geliştirme + preview: src/data/jules-data.ts'den import edilir (fetch/CORS sorunu yok).
@@ -12,8 +12,8 @@ import {
 // Şema değişince her iki dosyayı birlikte güncelle.
 
 // ─── Sabit config — useState gereksiz, bu veriler hiç değişmez ───────────────
-const julesConfig: JulesConfig  = JULES_CONFIG;
-const julesCards:  JulesCardsData = JULES_CARDS;
+const julesConfig = JULES_CONFIG;
+const julesCards  = JULES_CARDS;
 
 // ─── Ana bileşen ──────────────────────────────────────────────────────────────
 
@@ -29,6 +29,10 @@ export default function App() {
   const [scrollToSessionId, setScrollToSessionId] = useState<string | null>(null);
   const [isDark, setIsDark]                   = useState(false);
   const [isPinnedRight, setIsPinnedRight]     = useState(false);
+
+  // ── Minimize state ──────────────────────────────────────────────────────────
+  const [isMinimized, setIsMinimized]         = useState(true);   // Default: MiniJules
+  const boxRef = useRef<HTMLDivElement>(null);
 
   const defaultReplyIndexRef = useRef(0);
   const isMobileRef          = useRef(isMobile);
@@ -54,7 +58,7 @@ export default function App() {
     return () => { document.getElementById("jules-config-vars")?.remove(); };
   }, []); // julesConfig artık sabit, bir kez çalışır
 
-  // ── Yardımcı getter'lar ──────────────────────────────────────────────────────
+  // ─── Yardımcı getter'lar ──────────────────────────────────────────────────────
 
   const getSuggestions  = () => julesConfig.suggestions;
   const getDefaultReply = () => {
@@ -62,7 +66,7 @@ export default function App() {
     return replies[defaultReplyIndexRef.current++ % replies.length];
   };
 
-  // ── Resize & state senkronizasyonu ──────────────────────────────────────────
+  // ─── Resize & state senkronizasyonu ──────────────────────────────────────────
 
   useEffect(() => { isMobileRef.current = isMobile; }, [isMobile]);
 
@@ -163,6 +167,43 @@ export default function App() {
     });
   }, []);
 
+  // ── Expand animasyonu: box ilk render'da translateY(-160px)'ten gelir ─────────
+  useLayoutEffect(() => {
+    if (isMinimized) return;
+    const box = boxRef.current;
+    if (!box) return;
+    // Başlangıç: yukarıda ve görünmez (paint'ten önce ayarla)
+    box.style.transform  = "translateY(-160px)";
+    box.style.opacity    = "0";
+    box.style.transition = "none";
+    // Bir sonraki frame'de spring animasyonunu başlat
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!boxRef.current) return;
+        boxRef.current.style.transition = "transform 420ms cubic-bezier(0.34,1.28,0.64,1), opacity 280ms ease";
+        boxRef.current.style.transform  = "translateY(0)";
+        boxRef.current.style.opacity    = "1";
+      });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [isMinimized]);
+
+  // ── Minimize / Expand ────────────────────────────────────────────────────────
+  const handleMinimize = useCallback(() => {
+    const box = boxRef.current;
+    if (!box) { setIsMinimized(true); return; }
+    // Fiziksel ivmeyle yukarı fırlat
+    box.style.transition = "transform 350ms cubic-bezier(0.4,0,0.9,0.08), opacity 300ms ease";
+    box.style.transform  = "translateY(-160px)";
+    box.style.opacity    = "0";
+    setTimeout(() => setIsMinimized(true), 350);
+  }, []);
+
+  const handleExpand = useCallback(() => {
+    setIsMinimized(false);
+    // useLayoutEffect spring animasyonunu halleder
+  }, []);
+
   // ── Render ───────────────────────────────────────────────────────────────────
 
   const bg     = isDark ? "rgba(10,23,32,0.97)" : "rgba(255,255,255,0.97)";
@@ -176,16 +217,22 @@ export default function App() {
       likedCards,
       onLikedCardsChange: setLikedCards,
     }}>
+      {/* Overlay — MiniJules modunda kararmaz */}
       <div
         style={{
-          width: "100vw",
-          height: "100dvh",
+          position: "fixed",
+          inset: 0,
+          zIndex: 9999,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: isDark ? "#07111a" : "#f0f4f6",
-          overflow: "hidden",
+          background: isMinimized ? "transparent" : "rgba(0,0,0,0.38)",
+          backdropFilter: isMinimized ? "none" : "blur(2px)",
+          WebkitBackdropFilter: isMinimized ? "none" : "blur(2px)",
+          pointerEvents: isMinimized ? "none" : "auto",
+          transition: "background 0.35s ease, backdrop-filter 0.35s ease",
         }}
+        onClick={(e) => { if (e.target === e.currentTarget) handleMinimize(); }}
       >
         <style>{`
           @keyframes jules-slide-in-right {
@@ -194,111 +241,124 @@ export default function App() {
           }
         `}</style>
 
-        {/* Ana widget kapsayıcı */}
-        <div
-          style={{
-            ...(isPinned ? {
-              position: "fixed",
-              right: 0, top: 0,
-              width: "390px",
-              height: "100dvh",
-              borderRadius: "7px 0 0 7px",
-              boxShadow: "-8px 0 48px rgba(0,0,0,0.28), -2px 0 8px rgba(0,0,0,0.10)",
-              animation: "jules-slide-in-right 0.35s cubic-bezier(0.4,0,0.2,1)",
-              flexDirection: "column",
-            } : {
-              width: "100%",
-              height: "100dvh",
-              maxWidth: "100%",
-              flexDirection: "row",
-              borderRadius: 0,
-              boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
-            }),
-            display: "flex",
-            justifyContent: "center",
-            background: bg,
-            backdropFilter: "blur(24px) saturate(1.6)",
-            WebkitBackdropFilter: "blur(24px) saturate(1.6)",
-            overflow: "hidden",
-            transition: "background 0.3s",
-          }}
-        >
-          {/* Full-width header bottom border — tam ekran modda, sadece desktop */}
-          {!isPinned && !isMobile && (
-            <div
-              style={{
-                position: "absolute",
-                top: "52px",
-                left: 0,
-                right: 0,
-                height: "1px",
-                background: border,
-                zIndex: 20,
-                transition: "background 0.3s",
-                pointerEvents: "none",
-              }}
-            />
-          )}
+        {/* Ana widget kapsayıcı — minimize modunda gizli */}
+        {!isMinimized && (
           <div
+            ref={boxRef}
             style={{
-              width: "100%",
-              maxWidth: isMobile ? "100%" : "1200px",
-              height: "100%",
+              ...(isPinned ? {
+                position: "fixed",
+                right: 0, top: 0,
+                width: "390px",
+                height: "100dvh",
+                borderRadius: "7px 0 0 7px",
+                boxShadow: "-8px 0 48px rgba(0,0,0,0.28), -2px 0 8px rgba(0,0,0,0.10)",
+                flexDirection: "column",
+              } : {
+                width: "100%",
+                height: "100dvh",
+                maxWidth: "100%",
+                flexDirection: "row",
+                borderRadius: 0,
+                boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
+              }),
               display: "flex",
-              flexDirection: isMobile ? "column" : "row",
+              justifyContent: "center",
+              background: bg,
+              backdropFilter: "blur(24px) saturate(1.6)",
+              WebkitBackdropFilter: "blur(24px) saturate(1.6)",
               overflow: "hidden",
+              transition: "background 0.3s",
             }}
           >
-            {/* İçerik paneli — pinned modda gizli */}
-            {isPanelOpen && !isPinned && (
+            {/* Full-width header bottom border — tam ekran modda, sadece desktop */}
+            {!isPinned && !isMobile && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "52px",
+                  left: 0,
+                  right: 0,
+                  height: "1px",
+                  background: border,
+                  zIndex: 20,
+                  transition: "background 0.3s",
+                  pointerEvents: "none",
+                }}
+              />
+            )}
+            <div
+              style={{
+                width: "100%",
+                maxWidth: isMobile ? "100%" : "1200px",
+                height: "100%",
+                display: "flex",
+                flexDirection: isMobile ? "column" : "row",
+                overflow: "hidden",
+              }}
+            >
+              {/* İçerik paneli — pinned modda gizli */}
+              {isPanelOpen && !isPinned && (
+                <div
+                  style={
+                    isMobile
+                      ? { height: "50%", width: "100%", borderBottom: `1px solid ${border}`, flexShrink: 0, order: 1, overflow: "hidden" }
+                      : { flex: 1, borderLeft: `1px solid ${border}`, order: 2, overflow: "hidden" }
+                  }
+                >
+                  <ContentPanel
+                    sessions={panelSessions}
+                    activeSessionId={activeCardMsgId}
+                    onClose={handleClosePanel}
+                    isMobile={isMobile}
+                    scrollToSessionId={scrollToSessionId}
+                    onScrollHandled={() => setScrollToSessionId(null)}
+                  />
+                </div>
+              )}
+
+              {/* Chat paneli */}
               <div
                 style={
-                  isMobile
-                    ? { height: "50%", width: "100%", borderBottom: `1px solid ${border}`, flexShrink: 0, order: 1, overflow: "hidden" }
-                    : { flex: 1, borderLeft: `1px solid ${border}`, order: 2, overflow: "hidden" }
+                  isPinned
+                    ? { width: "100%", height: "100%", overflow: "hidden", display: "flex", flexDirection: "column" }
+                    : isMobile
+                      ? { height: isPanelOpen ? "50%" : "100%", width: "100%", flexShrink: 0, order: 2, overflow: "hidden", display: "flex", flexDirection: "column" }
+                      : { width: isPanelOpen ? "50%" : "100%", flexShrink: 0, order: 1, overflow: "hidden", display: "flex", flexDirection: "column", transition: "width 0.3s ease" }
                 }
               >
-                <ContentPanel
-                  sessions={panelSessions}
-                  activeSessionId={activeCardMsgId}
-                  onClose={handleClosePanel}
+                <ChatPanel
+                  messages={messages}
+                  onSend={handleSend}
+                  onShowCards={handleShowCards}
+                  activeCardMsgId={activeCardMsgId}
+                  isTyping={isTyping}
+                  isPanelOpen={isPanelOpen}
+                  hasPanelSessions={panelSessions.length > 0}
+                  onTogglePanel={handleTogglePanel}
                   isMobile={isMobile}
-                  scrollToSessionId={scrollToSessionId}
-                  onScrollHandled={() => setScrollToSessionId(null)}
+                  cardData={cardData}
+                  panelSessions={panelSessions}
+                  isPinnedRight={isPinned}
+                  onTogglePinnedRight={handleTogglePinnedRight}
+                  suggestions={getSuggestions()}
+                  onClose={handleMinimize}
                 />
               </div>
-            )}
-
-            {/* Chat paneli */}
-            <div
-              style={
-                isPinned
-                  ? { width: "100%", height: "100%", overflow: "hidden", display: "flex", flexDirection: "column" }
-                  : isMobile
-                    ? { height: isPanelOpen ? "50%" : "100%", width: "100%", flexShrink: 0, order: 2, overflow: "hidden", display: "flex", flexDirection: "column" }
-                    : { width: isPanelOpen ? "50%" : "100%", flexShrink: 0, order: 1, overflow: "hidden", display: "flex", flexDirection: "column", transition: "width 0.3s ease" }
-              }
-            >
-              <ChatPanel
-                messages={messages}
-                onSend={handleSend}
-                onShowCards={handleShowCards}
-                activeCardMsgId={activeCardMsgId}
-                isTyping={isTyping}
-                isPanelOpen={isPanelOpen}
-                hasPanelSessions={panelSessions.length > 0}
-                onTogglePanel={handleTogglePanel}
-                isMobile={isMobile}
-                cardData={cardData}
-                panelSessions={panelSessions}
-                isPinnedRight={isPinned}
-                onTogglePinnedRight={handleTogglePinnedRight}
-                suggestions={getSuggestions()}
-              />
             </div>
           </div>
-        </div>
+        )}
       </div>
+
+      {/* MiniJules — overlay dışında, her zaman tıklanabilir */}
+      {isMinimized && (
+        <MiniJules
+          isPinnedRight={isPinned}
+          suggestions={getSuggestions()}
+          hasMessages={messages.length > 0}
+          onExpand={handleExpand}
+        />
+      )}
     </JulesContext.Provider>
   );
 }

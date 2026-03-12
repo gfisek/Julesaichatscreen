@@ -210,6 +210,7 @@ export function ContentPanel({
                 <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
                   <Heart size={24} style={{ color: isDark ? "#1d3547" : "#e5e7eb" }} />
                   <p style={{ fontSize: "14px", color: textMuted }}>Henüz favori eklemediniz</p>
+                  <p style={{ fontSize: "12px", color: isDark ? "#2a4a5e" : "#d1d5db" }}>Kartların üzerindeki ♥ ikonuna dokunun</p>
                 </div>
               ) : isMobile ? (
                 <MobileCarousel
@@ -464,7 +465,7 @@ export function CardView({ card, liked, onLike, onProductClick, isMobile }: {
       className="inline-flex items-center gap-1 transition-all"
       style={{
         borderRadius: "3px",
-        fontSize: "10px",
+        fontSize: isMobile ? "11px" : "10px",
         fontWeight: 600,
         letterSpacing: "0.03em",
         padding: "4px 8px",
@@ -505,7 +506,7 @@ export function CardView({ card, liked, onLike, onProductClick, isMobile }: {
                 <div className="w-0.5 h-2.5" style={{ background: "var(--jules-accent-light)", borderRadius: "1px" }} />
                 <span
                   className="uppercase"
-                  style={{ fontSize: "9px", fontWeight: 700, letterSpacing: "0.08em", color: "var(--jules-accent-light)" }}
+                  style={{ fontSize: isMobile ? "10px" : "9px", fontWeight: 700, letterSpacing: "0.08em", color: "var(--jules-accent-light)" }}
                 >
                   {card.badge.toLocaleUpperCase('tr-TR')}
                 </span>
@@ -530,14 +531,14 @@ export function CardView({ card, liked, onLike, onProductClick, isMobile }: {
           </div>
 
           {/* Title */}
-          <p style={{ fontWeight: 600, fontSize: "12px", letterSpacing: "-0.01em", color: textPrimary, lineHeight: 1.4 }}>
+          <p style={{ fontWeight: 600, fontSize: isMobile ? "13px" : "12px", letterSpacing: "-0.01em", color: textPrimary, lineHeight: 1.4 }}>
             {card.title}
           </p>
 
           {/* Description — character-limited, same rhythm as photo card */}
           <p
             style={{
-              fontSize: "11px",
+              fontSize: isMobile ? "12px" : "11px",
               color: textDesc,
               lineHeight: "1.6",
             }}
@@ -601,20 +602,20 @@ export function CardView({ card, liked, onLike, onProductClick, isMobile }: {
             <div className="w-0.5 h-2.5" style={{ background: "var(--jules-accent-light)", borderRadius: "1px" }} />
             <span
               className="uppercase"
-              style={{ fontSize: "9px", fontWeight: 700, letterSpacing: "0.08em", color: "var(--jules-accent-light)" }}
+              style={{ fontSize: isMobile ? "10px" : "9px", fontWeight: 700, letterSpacing: "0.08em", color: "var(--jules-accent-light)" }}
             >
               {card.badge.toLocaleUpperCase('tr-TR')}
             </span>
           </div>
         )}
 
-        <p style={{ fontWeight: 600, fontSize: "12px", letterSpacing: "-0.01em", color: textPrimary }}>
+        <p style={{ fontWeight: 600, fontSize: isMobile ? "13px" : "12px", letterSpacing: "-0.01em", color: textPrimary }}>
           {card.title}
         </p>
 
         <p
           style={{
-            fontSize: "11px",
+            fontSize: isMobile ? "12px" : "11px",
             color: textDesc,
             display: "-webkit-box",
             WebkitLineClamp: 3,

@@ -38,6 +38,9 @@ export const CSS_VARS = `
     --jw-arrow-bg:         rgba(255,255,255,0.95);
     --jw-arrow-border:     rgba(0,0,0,0.1);
     --jw-msg-shadow-alpha: 0.10;
+    /* ── MiniJules ── */
+    --jw-mini-bg:          #f8f9f7;
+    --jw-mini-inner-bg:    #ffffff;
   }
   :host([data-dark]) {
     --jw-bg:               rgba(10,23,32,0.97);
@@ -62,6 +65,9 @@ export const CSS_VARS = `
     --jw-arrow-bg:         rgba(30,58,85,0.9);
     --jw-arrow-border:     rgba(77,196,206,0.3);
     --jw-msg-shadow-alpha: 0.35;
+    /* ── MiniJules ── */
+    --jw-mini-bg:          #0c1c28;
+    --jw-mini-inner-bg:    #132230;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
 `;
@@ -97,6 +103,10 @@ export const CSS_ANIMATIONS = `
     from { opacity:0; transform:translateX(-50%) translateY(6px); }
     to   { opacity:1; transform:translateX(-50%) translateY(0); }
   }
+  @keyframes jw-mini-appear {
+    from { opacity:0; transform:translateY(-14px) scale(0.98); }
+    to   { opacity:1; transform:translateY(0)     scale(1); }
+  }
   @keyframes jw-orbit-glow {
     0%   { filter: brightness(1) saturate(1) blur(0px);   transform: scale(1); }
     50%  { filter: brightness(1.4) saturate(1.5) blur(2px); transform: scale(1.02); }
@@ -119,6 +129,7 @@ export const CSS_ANIMATIONS = `
       #ff4d6d 360deg
     );
     animation: jw-orbit 6.4s linear infinite;
+    border-radius: 17px;
   }
   .jw-orbit-dark {
     background: conic-gradient(
@@ -134,6 +145,7 @@ export const CSS_ANIMATIONS = `
       rgba(255, 77,109,0.70) 360deg
     );
     animation: jw-orbit 6.4s linear infinite;
+    border-radius: 17px;
   }
   .jw-mic-listening {
     animation: jw-mic-ring 1.1s ease-out infinite;
@@ -230,7 +242,7 @@ export const CSS_LAYOUT = `
   }
 `;
 
-// ── 5. Components ─────────────────────────────────────────────────────────────
+// ── 5. Components ────────────────────────────────────────────────────────────
 export const CSS_COMPONENTS = `
   #jw-header {
     display: flex; align-items: center; gap: 12px;
@@ -342,6 +354,114 @@ export const CSS_OVERLAYS = `
   .jw-dot.active { width: 16px; }
 `;
 
-// ── Birleştir ──────────────────────────────────────────────────────────────────
+// ── 7. MiniJules ──────────────────────────────────────────────────────────────
+export const CSS_MINI = `
+  #jw-mini {
+    position: fixed;
+    z-index: 9998;
+    pointer-events: auto;
+    background: transparent;
+    animation: jw-mini-appear 380ms cubic-bezier(0.34,1.2,0.64,1) forwards;
+  }
+  #jw-mini.jw-mini-center {
+    top: 0; left: 0; right: 0;
+    display: flex;
+    justify-content: center;
+    padding: 4px 16px;
+  }
+  #jw-mini.jw-mini-right {
+    top: 0; right: 0;
+    padding: 4px 12px;
+    width: 390px;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  /* ── Row (orbit input + chevron) ── */
+  #jw-mini-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 350px;
+    max-width: calc(100vw - 32px);
+  }
+  #jw-mini.jw-mini-right #jw-mini-row { width: 100%; }
+
+  /* ── Orbit wrapper ── */
+  #jw-mini-orbit-wrap {
+    position: relative;
+    flex: 1;
+    border-radius: 17px;
+    padding: 1.5px;
+    background: transparent;
+    overflow: hidden;
+    transition: background 0.2s;
+    filter: drop-shadow(0 3px 12px rgba(0,0,0,0.16));
+  }
+  #jw-mini-orbit-bg {
+    position: absolute; inset: 0; z-index: 0;
+  }
+
+  /* ── Inner input card ── */
+  #jw-mini-inner {
+    position: relative; z-index: 1;
+    border-radius: 15.5px;
+    background: var(--jw-mini-inner-bg);
+    display: flex; flex-direction: row; align-items: center;
+    gap: 4px;
+    padding: 0 8px 0 12px;
+    height: 24px;
+    cursor: text;
+    transition: background 0.3s;
+  }
+
+  /* ── Textarea ── */
+  textarea.jw-mini-ta {
+    flex: 1;
+    background: transparent; border: none; outline: none;
+    resize: none; font-family: inherit;
+    font-size: 13px; color: var(--jw-text-primary);
+    line-height: 1.4; overflow: hidden;
+    padding: 0; cursor: pointer; caret-color: transparent;
+  }
+  textarea.jw-mini-ta::placeholder { color: var(--jw-placeholder); }
+  :host([data-dark]) textarea.jw-mini-ta::placeholder { color: #9bcfdf; }
+
+  /* ── Mic button ── */
+  .jw-mini-mic {
+    display: flex; align-items: center; justify-content: center;
+    background: transparent; border: none; cursor: pointer;
+    padding: 2px; border-radius: 5px;
+    color: var(--jw-text-muted); flex-shrink: 0;
+    transition: color 0.15s, background 0.15s;
+  }
+  .jw-mini-mic:hover { color: var(--jules-secondary); background: rgba(27,163,184,0.08); }
+
+  /* ── Send button ── */
+  .jw-mini-send {
+    display: flex; align-items: center; justify-content: center;
+    background: var(--jules-secondary); border: none; cursor: pointer;
+    padding: 3px 0; border-radius: 7px;
+    width: 34px;
+    color: white; flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(10,110,130,0.28);
+    transition: opacity 0.15s, transform 0.15s;
+  }
+  .jw-mini-send:hover  { opacity: 0.88; transform: scale(1.04); }
+  .jw-mini-send:active { transform: scale(0.96); }
+
+  /* ── Chevron — outside, transparent, teal ── */
+  .jw-mini-chevron {
+    display: flex; align-items: center; justify-content: center;
+    background: transparent; border: none; cursor: pointer;
+    padding: 6px; border-radius: 8px; flex-shrink: 0;
+    color: var(--jules-secondary);
+    opacity: 0.8;
+    transition: color 0.15s, transform 0.2s, opacity 0.15s;
+  }
+  .jw-mini-chevron:hover  { color: var(--jules-accent); opacity: 1; transform: translateY(3px); }
+  .jw-mini-chevron:active { transform: translateY(5px); }
+`;
+// ── Birleştir ─────────────────────────────────────────────────────────────────
 export const SHADOW_CSS =
-  CSS_VARS + CSS_ANIMATIONS + CSS_UTILS + CSS_LAYOUT + CSS_COMPONENTS + CSS_OVERLAYS;
+  CSS_VARS + CSS_ANIMATIONS + CSS_UTILS + CSS_LAYOUT + CSS_COMPONENTS + CSS_OVERLAYS + CSS_MINI;

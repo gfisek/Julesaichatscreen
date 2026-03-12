@@ -35,6 +35,9 @@ export function SwitchTooltip({
 
   if (typeof document === "undefined") return null;
 
+  // Touch/mobile cihazlarda tooltip gösterme
+  if (typeof window !== "undefined" && window.matchMedia("(hover: none)").matches) return null;
+
   const glassBase   = isDark ? "rgba(8,20,30,0.82)"               : "rgba(248,252,255,0.80)";
   const glassBorder = isDark ? "1px solid rgba(77,163,184,0.30)"  : "1px solid rgba(180,215,230,0.75)";
   const glassColor  = isDark ? "#b8dff0"                          : "#1c3d54";

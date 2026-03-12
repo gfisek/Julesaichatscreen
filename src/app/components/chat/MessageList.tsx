@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Bot, Copy, ThumbsUp, ThumbsDown, Sparkles } from "lucide-react";
 import { MobileCarousel } from "../ContentPanel";
 import { useJulesContext } from "../../context/JulesContext";
@@ -33,7 +33,14 @@ export function MessageList({
     userBubble, userBubbleText,
     accentColor, accentDimBg, accentDimBdr,
   } = useJulesTokens();
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const bottomRef  = useRef<HTMLDivElement>(null);
+  const msgRefsMap = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // Mesaj ref callback — her mesaj elementi mount olduğunda kaydedilir
+  const setMsgRef = useCallback((id: string) => (el: HTMLDivElement | null) => {
+    if (el) msgRefsMap.current.set(id, el);
+    else    msgRefsMap.current.delete(id);
+  }, []);
 
   const [votes, setVotes]                   = useState<Record<string, "up" | "down" | null>>({});
   const [copied, setCopied]                 = useState<string | null>(null);
@@ -42,8 +49,26 @@ export function MessageList({
   const [emojiPhase, setEmojiPhase]         = useState<"visible" | "out" | "in">("visible");
 
   useEffect(() => {
+    if (messages.length === 0) return;
+    const last = messages[messages.length - 1];
+    if (isMobile && last.role === "assistant") {
+      // Mobil + bot yanıtı: yeni mesajın üstü ekranın üstüne gelsin
+      const el = msgRefsMap.current.get(last.id);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+    }
+    // Diğer durumlar (kullanıcı mesajı, desktop): alta kaydır
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isTyping]);
+  }, [messages, isMobile]);
+
+  useEffect(() => {
+    // Typing göstergesi görünürken alta kaydır
+    if (isTyping) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [isTyping]);
 
   useEffect(() => {
     const hold = setTimeout(() => {
@@ -91,7 +116,7 @@ export function MessageList({
   return (
     <div
       className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-4 scroll-smooth flex flex-col"
-      style={{ colorScheme: isDark ? "dark" : "light", overscrollBehavior: "contain" }}
+      style={{ colorScheme: isDark ? "dark" : "light", overscrollBehavior: "contain", scrollPaddingTop: isMobile ? "7px" : "0px" }}
     >
       {/* ── Boş durum ── */}
       {messages.length === 0 && (
@@ -138,7 +163,7 @@ export function MessageList({
 
       {/* ── Mesajlar ── */}
       {messages.map((msg) => (
-        <div key={msg.id} className="flex flex-col">
+        <div key={msg.id} ref={setMsgRef(msg.id)} className="flex flex-col">
           <div className={`flex gap-2.5 items-start ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
             {msg.role === "assistant" && (
               <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 shadow-sm" style={{ background: "var(--jules-secondary)" }}>
@@ -150,8 +175,9 @@ export function MessageList({
               style={{ maxWidth: isCompact ? "85%" : isPanelOpen ? "70%" : "50%" }}
             >
               <div
-                className={`text-xs leading-relaxed ${msg.role === "user" ? "px-3.5 py-2.5" : `pl-0 pt-0 pr-3.5 ${(isMobile || isCompact) && msg.role === "assistant" ? "pb-1" : "pb-2.5"}`}`}
+                className={`leading-relaxed ${msg.role === "user" ? "px-3.5 py-2.5" : `pl-0 pt-0 pr-3.5 ${(isMobile || isCompact) && msg.role === "assistant" ? "pb-1" : "pb-2.5"}`}`}
                 style={{
+                  fontSize: isMobile ? "13px" : "12px",
                   borderRadius: msg.role === "user" ? "16px 16px 4px 16px" : "4px 16px 16px 16px",
                   background: msg.role === "user" ? userBubble : "transparent",
                   color: msg.role === "user" ? userBubbleText : (isDark ? "#cfe8f4" : "#1f2937"),

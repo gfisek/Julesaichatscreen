@@ -120,7 +120,7 @@ export function ChatHeader({
             (e.currentTarget as HTMLButtonElement).style.color = textMuted;
           }}
         >
-          <PhosphorX size={10} weight="bold" />
+          <PhosphorX size={isCompact ? 11 : 10} weight="bold" />
         </button>
         <span style={{ fontSize: "10px", color: textSecondary, whiteSpace: "nowrap", flexShrink: 0 }}>{dateStr}</span>
         {weatherInfo && (

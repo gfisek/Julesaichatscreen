@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
+    "widget:dev": "esbuild public/jules-src/widget.js --bundle --format=iife --outfile=public/jules-widget.js --watch --sourcemap",
     "widget:build": "esbuild public/jules-src/widget.js --bundle --format=iife --outfile=public/jules-widget.js",
     "widget:watch": "esbuild public/jules-src/widget.js --bundle --format=iife --outfile=public/jules-widget.js --watch",
     "widget:minify": "esbuild public/jules-src/widget.js --bundle --format=iife --minify --outfile=public/jules-widget.min.js",

@@ -5,7 +5,7 @@
 export const EMOJIS = ['👋🏼', '🖖🏼', 'BOT_ICON', '👇🏼', '👍🏼', '🙏🏼', '🤝🏼', '👏🏼'];
 
 export const TW_PHRASES = [
-  'Bir şeyler sorun...',
+  'Merhaba, size nasıl yardımcı olabilirim?',
   'Seyahat planı yap...',
   'Fiyat karşılaştır...',
   'Hafta sonu nereye gideyim?',

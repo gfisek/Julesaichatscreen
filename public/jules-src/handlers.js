@@ -2,6 +2,8 @@
  * handlers.js — Kullanıcı etkileşim handler'ları
  * _handleSend · _handleShowCards · _handleClosePanel · _handleTogglePanel
  * _handleTogglePinned · _handleLike · _handleVote · _handleCopy
+ *
+ * Optimized: _build() yerine incremental DOM update metodları kullanılır.
  */
 import { ICO }                   from './icons.js';
 import { genId, heartHtml }      from './utils.js';
@@ -20,7 +22,7 @@ export function _handleSend(text) {
   const userMsg = { id: genId(), role: 'user', content: text, timestamp: new Date() };
   this._st.messages.push(userMsg);
   this._st.isTyping = true;
-  this._build();
+  this._patchMessages();   // ← incremental: sadece yeni mesaj + typing eklenir
 
   const lower    = text.toLowerCase();
   const scenarios = this._cards.scenarios || [];
@@ -45,17 +47,21 @@ export function _handleSend(text) {
 
     if (cards && scenario) {
       this._st.cardData[botId] = { cards, title: scenario.panelTitle };
+      this._patchMessages();   // ← bot mesajını göster (typing kaldırılır)
       setTimeout(() => {
         this._st.activeCardMsgId = botId;
         const exists = this._st.panelSessions.find(s => s.id === botId);
         if (!exists) {
           this._st.panelSessions.push({ id: botId, cards, title: scenario.panelTitle, timestamp: new Date() });
         }
-        if (!this._st.isMobile && !this._st.isPinnedRight) this._st.isPanelOpen = true;
-        this._build();
+        if (!this._st.isMobile && !this._st.isPinnedRight) {
+          this._st.isPanelOpen = true;
+          this._openContentPanel();   // ← panel ekle, header/toggle güncelle
+        }
+        this._patchPanelToggle();
       }, 300);
     } else {
-      this._build();
+      this._patchMessages();   // ← bot mesajını göster (typing kaldırılır)
     }
   }, delay);
 }
@@ -70,26 +76,27 @@ export function _handleShowCards(msgId) {
       this._st.panelSessions.push({ id: msgId, ...data, timestamp: new Date() });
     }
   }
-  this._build();
+  this._openContentPanel();   // ← incremental panel aç
 }
 
 export function _handleClosePanel() {
   this._st.activeCardMsgId = null;
   this._st.isPanelOpen = false;
-  this._build();
+  this._closeContentPanel();   // ← incremental panel kapat
 }
 
 export function _handleTogglePanel() {
   if (this._st.isPanelOpen) {
     this._st.isPanelOpen = false;
     this._st.activeCardMsgId = null;
+    this._closeContentPanel();   // ← incremental panel kapat
   } else if (this._st.panelSessions.length > 0) {
     this._st.isPanelOpen = true;
     if (!this._st.activeCardMsgId && this._st.panelSessions.length > 0) {
       this._st.activeCardMsgId = this._st.panelSessions[this._st.panelSessions.length - 1].id;
     }
+    this._openContentPanel();   // ← incremental panel aç
   }
-  this._build();
 }
 
 export function _handleTogglePinned() {
@@ -98,13 +105,14 @@ export function _handleTogglePinned() {
     this._st.isPanelOpen = false;
     this._st.activeCardMsgId = null;
   }
-  this._build();
+  this._build();   // Layout değişikliği — full rebuild gerekli
 }
 
 export function _handleLike(likeKey) {
   if (this._st.likedCards.has(likeKey)) this._st.likedCards.delete(likeKey);
   else this._st.likedCards.add(likeKey);
   const liked = this._st.likedCards.has(likeKey);
+  this._favCountCache = undefined; // _getFavCount() önbelleğini geçersiz kıl
   this.dispatchEvent(new CustomEvent('jules:likechange', { detail: { likeKey, liked } }));
 
   // Hedefli DOM güncellemesi — kalp butonlarını güncelle
@@ -114,27 +122,36 @@ export function _handleLike(likeKey) {
     btn.innerHTML = heartHtml(hs, liked, false, onImg);
   });
 
-  if (this._st.showFavoritesInPanel || this._st.showFavDrawer) {
-    this._build();
-  } else {
-    const favCount = this._getFavCount();
-    const T = this._T();
-    // Compact header fav butonu
-    const compactFavBtn = this._shadow.querySelector('[data-compact-fav-btn]');
-    if (compactFavBtn) {
-      compactFavBtn.style.color = favCount > 0 ? '#f87171' : T.textMuted;
-      compactFavBtn.innerHTML   = ICO.Heart(16, favCount > 0) +
-        (favCount > 0 ? '<span style="position:absolute;top:1px;right:1px;width:14px;height:14px;border-radius:50%;background:#f87171;color:#fff;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;">' + favCount + '</span>' : '');
-    }
-    // CP header fav butonu
-    const cpFavBtn = this._shadow.querySelector('[data-cp-fav-btn]');
-    if (cpFavBtn) {
-      const isActive = this._st.showFavoritesInPanel;
-      cpFavBtn.style.color       = (isActive || favCount > 0) ? '#f87171' : T.textMuted;
-      cpFavBtn.style.borderColor = (isActive || favCount > 0) ? '#f87171' : T.border;
-      cpFavBtn.style.background  = (isActive || favCount > 0) ? (this._st.isDark ? 'rgba(248,113,113,0.1)' : '#fff5f5') : 'transparent';
-      cpFavBtn.innerHTML = ICO.Heart(10, isActive || favCount > 0) + (favCount > 0 ? '<span>' + favCount + '</span>' : '');
-    }
+  // Fav görünümleri açıksa sadece ilgili alanı yenile
+  if (this._st.showFavoritesInPanel) {
+    this._refreshContentPanelBody();
+  }
+  if (this._st.showFavDrawer) {
+    const oldBackdrop = this._shadow.getElementById('jw-fav-backdrop');
+    if (oldBackdrop) oldBackdrop.remove();
+    this._shadow.appendChild(this._buildFavDrawer());
+  }
+
+  // Her durumda fav sayacı butonlarını güncelle
+  const favCount = this._getFavCount();
+  const T = this._T();
+
+  // Compact header fav butonu
+  const compactFavBtn = this._shadow.querySelector('[data-compact-fav-btn]');
+  if (compactFavBtn) {
+    compactFavBtn.style.color = favCount > 0 ? '#f87171' : T.textMuted;
+    compactFavBtn.innerHTML   = ICO.Heart(16, favCount > 0) +
+      (favCount > 0 ? '<span style="position:absolute;top:1px;right:1px;width:14px;height:14px;border-radius:50%;background:#f87171;color:#fff;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;">' + favCount + '</span>' : '');
+  }
+
+  // CP header fav butonu
+  const cpFavBtn = this._shadow.querySelector('[data-cp-fav-btn]');
+  if (cpFavBtn) {
+    const isActive = this._st.showFavoritesInPanel;
+    cpFavBtn.style.color       = (isActive || favCount > 0) ? '#f87171' : T.textMuted;
+    cpFavBtn.style.borderColor = (isActive || favCount > 0) ? '#f87171' : T.border;
+    cpFavBtn.style.background  = (isActive || favCount > 0) ? (this._st.isDark ? 'rgba(248,113,113,0.1)' : '#fff5f5') : 'transparent';
+    cpFavBtn.innerHTML = ICO.Heart(10, isActive || favCount > 0) + (favCount > 0 ? '<span>' + favCount + '</span>' : '');
   }
 }
 

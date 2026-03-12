@@ -8,6 +8,79 @@ import { esc, formatTime, getDateStr,
          getSunLabel, weatherIconHtml }     from './utils.js';
 import { EMOJIS, TW_PHRASES }              from './constants.js';
 
+const MINI_RETURN_PHRASE = 'Size nasıl yardımcı olabilirim?';
+
+// ── MiniJules Bar ──────────────────────────────────────────────────────────────
+export function _buildMiniJules() {
+  const st = this._st;
+
+  const mini = document.createElement('div');
+  mini.id = 'jw-mini';
+  mini.className = st.isPinnedRight ? 'jw-mini-right' : 'jw-mini-center';
+
+  // Row: [orbit-input] [chevron]
+  const row = document.createElement('div');
+  row.id = 'jw-mini-row';
+
+  // ── Orbit wrapper ────────────────────────────────────────────────────────────
+  const orbitWrap = document.createElement('div');
+  orbitWrap.id = 'jw-mini-orbit-wrap';
+
+  const orbitBg = document.createElement('div');
+  orbitBg.id = 'jw-mini-orbit-bg';
+  orbitBg.className = st.isDark ? 'jw-orbit-dark' : 'jw-orbit-light';
+  this._refs.miniOrbitBg = orbitBg;
+  orbitWrap.appendChild(orbitBg);
+
+  // ── Inner card ───────────────────────────────────────────────────────────────
+  const inner = document.createElement('div');
+  inner.id = 'jw-mini-inner';
+  inner.addEventListener('click', () => this.expand());
+
+  // Textarea (readOnly — typewriter, no keyboard on mobile)
+  const ta = document.createElement('textarea');
+  ta.className = 'jw-mini-ta';
+  ta.rows = 1;
+  ta.placeholder = 'Bir şeyler sorun...';
+  ta.readOnly = true;
+  ta.addEventListener('click', (e) => { e.stopPropagation(); this.expand(); });
+  inner.appendChild(ta);
+
+  // Mic button
+  const micBtn = document.createElement('button');
+  micBtn.className = 'jw-btn jw-mini-mic';
+  micBtn.title = 'Sesli yaz';
+  micBtn.innerHTML = ICO.Mic(17);
+  micBtn.addEventListener('click', (e) => { e.stopPropagation(); this.expand(); });
+  inner.appendChild(micBtn);
+
+  // Send button (Send — kuzeydoğu ok, React tarafıyla tutarlı)
+  const sendBtn = document.createElement('button');
+  sendBtn.className = 'jw-btn jw-mini-send';
+  sendBtn.title = 'Gönder';
+  sendBtn.innerHTML = ICO.Send(14);
+  sendBtn.addEventListener('click', (e) => { e.stopPropagation(); this.expand(); });
+  inner.appendChild(sendBtn);
+
+  orbitWrap.appendChild(inner);
+  row.appendChild(orbitWrap);
+
+  // ── Chevron — dışarıda, transparent bg, teal ─────────────────────────────────
+  const chevronBtn = document.createElement('button');
+  chevronBtn.className = 'jw-btn jw-mini-chevron';
+  chevronBtn.title = "Jules'ı aç";
+  chevronBtn.innerHTML = ICO.ChevronDown(18);
+  chevronBtn.addEventListener('click', (e) => { e.stopPropagation(); this.expand(); });
+  row.appendChild(chevronBtn);
+
+  mini.appendChild(row);
+
+  // Typewriter effect on placeholder
+  setTimeout(() => this._startTypewriter(ta, this._st.messages.length > 0), 80);
+
+  return mini;
+}
+
 // ── Chat Panel ─────────────────────────────────────────────────────────────────
 export function _buildChatPanel() {
   const st = this._st;
@@ -16,6 +89,7 @@ export function _buildChatPanel() {
   const chat = document.createElement('div');
   chat.id = 'jw-chat';
   chat.style.background = 'transparent';
+  this._refs.chatPanel = chat;
 
   chat.appendChild(this._buildHeader(isCompact));
 
@@ -23,7 +97,7 @@ export function _buildChatPanel() {
   const msgs = document.createElement('div');
   msgs.id = 'jw-messages';
   msgs.className = 'jw-scroll';
-  msgs.style.cssText = 'flex:1;min-height:0;padding:16px;display:flex;flex-direction:column;gap:16px;overscroll-behavior:contain;';
+  msgs.style.cssText = 'flex:1;min-height:0;padding:16px;display:flex;flex-direction:column;gap:16px;overscroll-behavior:contain;' + (st.isMobile ? 'scroll-padding-top:7px;' : '');
   msgs.style.colorScheme = st.isDark ? 'dark' : 'light';
 
   if (st.messages.length === 0) {
@@ -43,7 +117,15 @@ export function _buildChatPanel() {
     chat.appendChild(this._buildSuggestions(isCompact));
   }
 
-  chat.appendChild(this._buildInputArea(isCompact));
+  // ── Reuse input area if compact mode unchanged ──
+  const existingInput = this._refs.inputArea;
+  if (existingInput && !existingInput.isConnected && this._lastIsCompact === isCompact) {
+    chat.appendChild(existingInput);
+  } else {
+    const inputArea = this._buildInputArea(isCompact);
+    this._refs.inputArea = inputArea;
+    chat.appendChild(inputArea);
+  }
   return chat;
 }
 
@@ -65,7 +147,7 @@ export function _buildHeader(isCompact) {
   const closeBtn = document.createElement('button');
   closeBtn.className = 'jw-btn';
   closeBtn.title = "Jules'ı kapat";
-  closeBtn.innerHTML = ICO.PhosphorX(11);
+  closeBtn.innerHTML = ICO.PhosphorX(isCompact ? 12 : 11);
   closeBtn.style.cssText = 'width:24px;height:24px;border-radius:8px;border:1px solid ' + T.border + ';color:' + T.textMuted + ';flex-shrink:0;transition:background 0.15s,border-color 0.15s,color 0.15s;';
   closeBtn.addEventListener('mouseenter', () => {
     closeBtn.style.background = 'rgba(248,113,113,0.12)';
@@ -113,6 +195,7 @@ export function _buildHeader(isCompact) {
   // Right controls
   const right = document.createElement('div');
   right.style.cssText = 'margin-left:auto;display:flex;align-items:center;gap:10px;flex-shrink:0;';
+  right.dataset.headerRight = '1'; // _patchHeader() targeted update için marker
 
   if (isCompact) {
     const favCount = this._getFavCount();
@@ -121,7 +204,7 @@ export function _buildHeader(isCompact) {
     favBtn.dataset.compactFavBtn = '1';
     favBtn.style.cssText = 'position:relative;padding:6px;border-radius:8px;color:' + (favCount > 0 ? '#f87171' : T.textMuted) + ';transition:color 0.15s,background 0.15s;';
     favBtn.innerHTML = ICO.Heart(16, favCount > 0) + (favCount > 0 ? '<span style="position:absolute;top:1px;right:1px;width:14px;height:14px;border-radius:50%;background:#f87171;color:#fff;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;">' + favCount + '</span>' : '');
-    favBtn.addEventListener('click', () => { this._st.showFavDrawer = true; this._build(); });
+    favBtn.addEventListener('click', () => { this._showFavDrawerInc(); });
     favBtn.addEventListener('mouseenter', () => { favBtn.style.background = T.accentDimBg; });
     favBtn.addEventListener('mouseleave', () => { favBtn.style.background = 'transparent'; });
     right.appendChild(favBtn);
@@ -136,6 +219,7 @@ export function _buildHeader(isCompact) {
   if (!st.isPanelOpen && st.panelSessions.length > 0 && !isCompact) {
     const chevBtn = document.createElement('button');
     chevBtn.className = 'jw-btn';
+    chevBtn.dataset.panelChevron = '1'; // _patchHeader() targeted toggle için marker
     chevBtn.title = 'Sonuçları göster';
     chevBtn.innerHTML = ICO.ChevronLeft(14);
     chevBtn.style.cssText = 'width:24px;height:24px;border-radius:8px;border:1px solid ' + T.accentDimBdr + ';background:' + T.accentDimBg + ';color:' + T.accentColor + ';transition:background 0.15s,color 0.15s;';
@@ -222,6 +306,7 @@ export function _buildMessage(msg, isCompact) {
 
   const wrap = document.createElement('div');
   wrap.className = 'jw-msg-in';
+  wrap.id = 'jw-msg-' + msg.id;
   wrap.style.cssText = 'display:flex;flex-direction:column;';
 
   const row = document.createElement('div');
@@ -241,7 +326,7 @@ export function _buildMessage(msg, isCompact) {
   const bubble = document.createElement('div');
   const bubblePadding = (!isUser && isCompact) ? '10px 14px 4px 0' : '10px 14px';
   bubble.style.cssText = [
-    'padding:' + bubblePadding + ';font-size:12px;line-height:1.6;border-radius:' + (isUser ? '16px 16px 4px 16px' : '4px 16px 16px 16px') + ';',
+    'padding:' + bubblePadding + ';font-size:' + (isCompact ? '13px' : '12px') + ';line-height:1.6;border-radius:' + (isUser ? '16px 16px 4px 16px' : '4px 16px 16px 16px') + ';',
     'background:' + (isUser ? T.userBubble : 'transparent') + ';',
     'color:' + (isUser ? T.userBubbleTxt : (st.isDark ? '#cfe8f4' : '#1f2937')) + ';',
     isUser ? 'box-shadow:0 2px 8px rgba(0,0,0,var(--jw-msg-shadow-alpha));' : '',
@@ -253,6 +338,7 @@ export function _buildMessage(msg, isCompact) {
   if (msg.hasCards && !isUser && !isCompact) {
     const cardsBtn = document.createElement('button');
     cardsBtn.className = 'jw-btn';
+    cardsBtn.dataset.cardsMsgId = msg.id;
     const isActive = st.activeCardMsgId === msg.id;
     cardsBtn.style.cssText = 'display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:12px;font-size:10px;font-weight:500;font-family:inherit;transition:background 0.15s,color 0.15s,border-color 0.15s;' +
       (isActive ? 'background:var(--jules-secondary);color:white;border:1px solid transparent;' : 'background:' + T.accentDimBg + ';color:' + T.accentColor + ';border:1px solid ' + T.accentDimBdr + ';');
@@ -332,6 +418,7 @@ export function _buildMessage(msg, isCompact) {
 export function _buildTyping() {
   const T = this._T();
   const wrap = document.createElement('div');
+  wrap.id = 'jw-typing';
   wrap.style.cssText = 'display:flex;gap:10px;justify-content:flex-start;';
 
   const avatar = document.createElement('div');
@@ -351,17 +438,18 @@ export function _buildTyping() {
   return wrap;
 }
 
-// ── Typewriter Placeholder ─────────────────────────────────────────────────────
-export function _startTypewriter(ta) {
+// ── Typewriter Placeholder ────────────────────────────────────────────────────
+export function _startTypewriter(ta, hasMessages) {
   if (!ta) return;
   const phrases = TW_PHRASES;
   let phraseIdx = 0;
   let active = true;
-  let timers = [];
+  let currentTimer = null; // tek timer ref — zincirde her adım öncekini iptal eder
 
   const stop = () => {
     active = false;
-    timers.forEach(t => clearTimeout(t));
+    clearTimeout(currentTimer);
+    currentTimer = null;
     if (ta.placeholder.endsWith('|')) {
       ta.placeholder = ta.placeholder.slice(0, -1) || 'Bir şeyler sorun...';
     }
@@ -369,33 +457,47 @@ export function _startTypewriter(ta) {
   this._twStop = stop;
 
   const schedule = (fn, ms) => {
-    const t = setTimeout(fn, ms);
-    timers.push(t);
-    if (timers.length > 60) timers = timers.slice(-20);
+    clearTimeout(currentTimer);
+    currentTimer = setTimeout(fn, ms);
   };
 
-  const type = (phrase, charIdx) => {
-    if (!active || ta.value) { ta.placeholder = 'Bir şeyler sorun...'; return; }
-    ta.placeholder = phrase.slice(0, charIdx) + '|';
-    if (charIdx < phrase.length) {
-      schedule(() => type(phrase, charIdx + 1), 62);
-    } else {
-      schedule(() => erase(phrase, phrase.length), 1500);
-    }
-  };
+  if (hasMessages) {
+    // Mesaj varsa: "Size nasıl yardımcı olabilirim?" yaz ve kal — sil/döngü yok
+    const phrase = MINI_RETURN_PHRASE;
+    const typeOnce = (charIdx) => {
+      if (!active) return;
+      ta.placeholder = phrase.slice(0, charIdx) + (charIdx < phrase.length ? '|' : '');
+      if (charIdx < phrase.length) {
+        schedule(() => typeOnce(charIdx + 1), 62);
+      }
+      // Tam yazıldığında dur — erase çağrılmaz
+    };
+    typeOnce(0);
+  } else {
+    // Mesaj yoksa: TW_PHRASES döngüsü
+    const type = (phrase, charIdx) => {
+      if (!active || ta.value) { ta.placeholder = 'Bir şeyler sorun...'; return; }
+      ta.placeholder = phrase.slice(0, charIdx) + '|';
+      if (charIdx < phrase.length) {
+        schedule(() => type(phrase, charIdx + 1), 62);
+      } else {
+        schedule(() => erase(phrase, phrase.length), 1500);
+      }
+    };
 
-  const erase = (phrase, charIdx) => {
-    if (!active || ta.value) { ta.placeholder = 'Bir şeyler sorun...'; return; }
-    if (charIdx === 0) {
-      phraseIdx = (phraseIdx + 1) % phrases.length;
-      schedule(() => type(phrases[phraseIdx], 0), 320);
-    } else {
-      ta.placeholder = phrase.slice(0, charIdx - 1) + '|';
-      schedule(() => erase(phrase, charIdx - 1), 38);
-    }
-  };
+    const erase = (phrase, charIdx) => {
+      if (!active || ta.value) { ta.placeholder = 'Bir şeyler sorun...'; return; }
+      if (charIdx === 0) {
+        phraseIdx = (phraseIdx + 1) % phrases.length;
+        schedule(() => type(phrases[phraseIdx], 0), 320);
+      } else {
+        ta.placeholder = phrase.slice(0, charIdx - 1) + '|';
+        schedule(() => erase(phrase, charIdx - 1), 38);
+      }
+    };
 
-  type(phrases[0], 0);
+    type(phrases[phraseIdx], 0);
+  }
 }
 
 // ── Suggestions ────────────────────────────────────────────────────────────────
@@ -453,7 +555,7 @@ export function _buildSuggestions(isCompact) {
     fadeL.style.opacity = sl > 4 ? '1' : '0';
     fadeR.style.opacity = sl < max - 4 ? '1' : '0';
   };
-  bar.addEventListener('scroll', updateFade);
+  bar.addEventListener('scroll', updateFade, { passive: true });
 
   suggestions.forEach(s => {
     const chip = document.createElement('button');
