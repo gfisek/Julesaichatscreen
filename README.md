@@ -14,6 +14,7 @@ Apple estetiği, glassmorphism efektleri ve minimalist tasarımla hazırlanmış
 │   │   │   ├── ChatInput.tsx        # Input wrapper
 │   │   │   ├── ChipBar.tsx          # Öneri chip'leri
 │   │   │   ├── FavoritesDrawer.tsx  # Favoriler çekmecesi
+│   │   │   ├── InlineForm.tsx       # Satır içi form (iletişim/bilgi)
 │   │   │   ├── JulesOrbitInput.tsx  # Ortak orbit input bileşeni
 │   │   │   ├── MessageList.tsx      # Mesaj listesi & scroll
 │   │   │   └── SwitchTooltip.tsx    # Mod geçiş tooltip
@@ -34,20 +35,21 @@ Apple estetiği, glassmorphism efektleri ve minimalist tasarımla hazırlanmış
 │
 ├── /public/                         # Production dosyaları
 │   ├── jules-src/                   # Web Component modülleri (KAYNAK KOD)
-│   │   ├── widget.js                # Entry point (JulesWidget sınıfı)
-│   │   ├── constants.js             # Config & defaults
-│   │   ├── css.js                   # Shadow DOM styles
-│   │   ├── icons.js                 # Phosphor icon SVG'leri
-│   │   ├── utils.js                 # Utilities
-│   │   ├── handlers.js              # Event handlers
-│   │   ├── helpers.js               # UI helpers
-│   │   ├── render-chat.js           # Chat rendering
-│   │   ├── render-input.js          # Input rendering
-│   │   └── render-content.js        # Content panel rendering
+│   │   ├── widget.js                # Entry point (JulesWidget sınıfı + state)
+│   │   ├── constants.js             # EMOJIS, TW_PHRASES, DEFAULT_CONFIG, DEFAULT_CARDS, FORM_CONFIG, FIELD_META
+│   │   ├── css.js                   # Shadow DOM stylesheet (SHADOW_CSS)
+│   │   ├── icons.js                 # ICO nesnesi — Lucide (stroke) + Phosphor (fill)
+│   │   ├── utils.js                 # debounce, genId, esc, heartHtml, weatherIconHtml, getSunLabel, isSafeUrl, lockBodyScroll, …
+│   │   ├── handlers.js              # Kullanıcı etkileşim handler'ları (incremental DOM update)
+│   │   ├── helpers.js               # UI helper metodları + incremental update metodları
+│   │   ├── render-chat.js           # Chat alanı render fonksiyonları
+│   │   ├── render-input.js          # Orbit input & footer render fonksiyonları
+│   │   ├── render-content.js        # İçerik/favoriler paneli render fonksiyonları
+│   │   └── render-form.js           # Satır içi form render fonksiyonları
 │   ├── jules-widget/
 │   │   ├── config.json              # Widget konfigürasyonu
 │   │   └── cards.json               # Kart verisi
-│   ├── jules-widget.js              # Build output (git'e eklenmez)
+│   ├── jules-widget.js              # Build çıktısı (git'e eklenmez)
 │   ├── jules-widget.min.js          # Minified build (git'e eklenmez)
 │   ├── demo.html                    # Demo & entegrasyon örneği
 │   └── BUILD.md                     # Detaylı build dokümantasyonu
@@ -145,6 +147,17 @@ Detaylı bilgi için: **[public/BUILD.md](./public/BUILD.md)**
 - **Scroll:** Mobilde bot mesajı geldiğinde `scrollIntoView({ block: "start" })` ile üstten kesme önlendi; `scroll-padding-top: 7px` eklendi
 - **Favoriler:** Favorilerim panelinde boş durum açıklaması ("Kartların üzerindeki ♥ ikonuna dokunun")
 
+### Kartlar
+- Kart yapısı: başlık, alt başlık, açıklama, rozet, görsel ve CTA butonu
+- Tag (etiket) satırı kaldırıldı — kartlar daha kompakt
+- Görsel yüklenemezse arka plan rengi ile graceful fallback
+
+### Form Sistemi
+- `constants.js`'teki `FORM_CONFIG` / `FIELD_META` ile merkezi alan tanımları
+- Desteklenen form tipleri: `anaform`, `adsoyad`, `eposta`
+- `render-form.js` Shadow DOM'da render, `handlers.js`'de submit yönetimi
+- KVKK onay checkbox'ı — form gönderilemeden önce işaretlenmesi zorunlu
+
 ### Mobil
 - Mesaj baloncukları `13px`, kart başlıkları `13px`, açıklamalar `12px`, badge'ler `10px`, CTA'lar `11px`
 - Kapat butonu ikonu `12px`
@@ -161,6 +174,50 @@ Detaylı bilgi için: **[public/BUILD.md](./public/BUILD.md)**
   - `_showFavDrawerInc()` / `_hideFavDrawer()` — favori çekmecesi
   - Suggestions cache, smart typewriter stop, input area persist
 - Tipik kullanımda 3 full rebuild → 0 rebuild
+
+---
+
+## Güvenlik
+
+Bu bölüm Mart 2026 güvenlik audit'inde tespit edilen bulguları ve uygulanan düzeltmeleri özetler.
+
+### `isSafeUrl(url)` — `utils.js`
+
+Tüm URL doğrulama noktaları bu tek fonksiyon üzerinden geçer.
+İzin verilen: `https://`, `http://`, `/`, `./`, `../`, `#`
+Reddedilen: `javascript:`, `data:`, `vbscript:` ve diğer protokoller.
+
+Kullanım noktaları:
+| Lokasyon | Alan | Risk |
+|----------|------|------|
+| `render-content.js` | `card.url` → `window.open()` | URL injection |
+| `render-content.js` | `card.image` → `img.src` | Protokol bypass |
+| `render-input.js` | `branding.poweredByUrl` → `<a href>` | URL injection |
+
+### HTML Escape — `esc()`
+
+Tüm `innerHTML` atamaları ya hardcoded SVG ya da `esc()` geçmiş string kullanır.
+Harici API'den gelen değerler (`wi.sunrise`, `wi.sunset`) da `esc()` ile sanitize edilir.
+
+### JSON Schema Doğrulaması
+
+`_loadData()` artık yüklenen JSON'ların temel yapısını doğrular:
+- `config`: nesne olmalı, dizi/primitive kabul edilmez
+- `cards.datasets`: nesne olmalı
+- `cards.scenarios`: dizi olmalı
+
+Kötü biçimlendirilmiş veri varsayılan değerleri korur, crash olmaz.
+
+### Mixin Conflict Check
+
+`widget.js`'teki modül çakışma tespiti yalnızca `localhost` veya
+`?jw-debug` parametresi ile çalışır; production'da `console.warn` basılmaz.
+
+### Shadow DOM Notu
+
+`attachShadow({ mode: 'open' })` ile oluşturulan Shadow DOM, host sayfanın
+`element.shadowRoot` üzerinden erişilebilir. Bu tasarım gereğidir (public API).
+Shadow DOM içinde hassas kullanıcı verisi saklanmamaktadır.
 
 ---
 
@@ -192,33 +249,48 @@ Detaylı bilgi için: **[public/BUILD.md](./public/BUILD.md)**
 
 <!-- 3. JavaScript API (opsiyonel) -->
 <script>
-  document.querySelector('jules-widget').open();
-  // widget.setAttribute('dark', 'true');
+  const w = document.querySelector('jules-widget');
+  w.open();            // Widget'ı aç
+  w.close();           // Kapat
+  w.toggle();          // Aç/kapat
+  // w.setAttribute('dark', '');  // Dark mode
 </script>
+```
+
+### Custom Events
+
+```js
+document.querySelector('jules-widget').addEventListener('jules:productclick', e => {
+  console.log(e.detail.productId, e.detail.card);
+});
+// jules:minimize  — widget minimize edildiğinde
+// jules:expand    — widget açıldığında (gelecek)
 ```
 
 ---
 
 ## Teknik Detaylar
 
-- **Bundle Tool:** esbuild v0.25+
-- **Format:** IIFE (Immediately Invoked Function Expression)
-- **Encapsulation:** Shadow DOM (tam CSS/JS izolasyonu)
-- **Size:** ~100 KB (unminified) / ~40-50 KB (minified)
-- **Browser Support:** Modern browsers (ES6+)
-- **React:** 18.3.1 (peer dependency, sadece preview için)
-- **Tailwind CSS:** v4
+| Özellik | Değer |
+|---------|-------|
+| Bundle Tool | esbuild v0.25+ |
+| Format | IIFE (Immediately Invoked Function Expression) |
+| Encapsulation | Shadow DOM (tam CSS/JS izolasyonu) |
+| Yaklaşık Boyut | ~100 KB (unminified) / ~40–50 KB (minified) |
+| Tarayıcı Desteği | Modern tarayıcılar (ES2020+) |
+| React | 18.3.1 (peer dep, sadece preview için) |
+| Tailwind CSS | v4 |
 
 ---
 
 ## Dokümantasyon
 
-- **[public/BUILD.md](./public/BUILD.md)** — Detaylı build & deployment rehberi
+- **[public/BUILD.md](./public/BUILD.md)** — Detaylı build & modül API rehberi
 - **[public/demo.html](./public/demo.html)** — Canlı örnek & entegrasyon kodu
-- **Modül API'leri** — Her `.js` dosyasındaki JSDoc yorumları
+- **Modül JSDoc** — Her `.js` dosyasındaki satır içi yorumlar
 
 ---
 
-**Version:** 2.0
-**Last Updated:** 12 Mart 2026
+**Version:** 2.1
+**Last Updated:** 17 Mart 2026
 **Maintained by:** JULES Team
