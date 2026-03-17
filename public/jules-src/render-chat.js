@@ -16,13 +16,18 @@ export function _buildMiniJules() {
 
   const mini = document.createElement('div');
   mini.id = 'jw-mini';
-  mini.className = st.isPinnedRight ? 'jw-mini-right' : 'jw-mini-center';
+  const posClass = st.isPinnedRight ? 'jw-mini-right' : 'jw-mini-center';
+  if (this._miniFirstOpen) {
+    mini.className = posClass + ' jw-mini-first-open';
+    this._miniFirstOpen = false;
+  } else {
+    mini.className = posClass;
+  }
 
-  // Row: [orbit-input] [chevron]
   const row = document.createElement('div');
   row.id = 'jw-mini-row';
 
-  // ── Orbit wrapper ────────────────────────────────────────────────────────────
+  // Orbit wrapper
   const orbitWrap = document.createElement('div');
   orbitWrap.id = 'jw-mini-orbit-wrap';
 
@@ -32,7 +37,7 @@ export function _buildMiniJules() {
   this._refs.miniOrbitBg = orbitBg;
   orbitWrap.appendChild(orbitBg);
 
-  // ── Inner card ───────────────────────────────────────────────────────────────
+  // Inner card
   const inner = document.createElement('div');
   inner.id = 'jw-mini-inner';
   inner.addEventListener('click', () => this.expand());
@@ -50,33 +55,26 @@ export function _buildMiniJules() {
   const micBtn = document.createElement('button');
   micBtn.className = 'jw-btn jw-mini-mic';
   micBtn.title = 'Sesli yaz';
+  micBtn.setAttribute('aria-label', 'Sesli yaz');
   micBtn.innerHTML = ICO.Mic(17);
   micBtn.addEventListener('click', (e) => { e.stopPropagation(); this.expand(); });
   inner.appendChild(micBtn);
 
-  // Send button (Send — kuzeydoğu ok, React tarafıyla tutarlı)
+  // Send button
   const sendBtn = document.createElement('button');
   sendBtn.className = 'jw-btn jw-mini-send';
   sendBtn.title = 'Gönder';
+  sendBtn.setAttribute('aria-label', 'Gönder');
   sendBtn.innerHTML = ICO.Send(14);
   sendBtn.addEventListener('click', (e) => { e.stopPropagation(); this.expand(); });
   inner.appendChild(sendBtn);
 
   orbitWrap.appendChild(inner);
   row.appendChild(orbitWrap);
-
-  // ── Chevron — dışarıda, transparent bg, teal ─────────────────────────────────
-  const chevronBtn = document.createElement('button');
-  chevronBtn.className = 'jw-btn jw-mini-chevron';
-  chevronBtn.title = "Jules'ı aç";
-  chevronBtn.innerHTML = ICO.ChevronDown(18);
-  chevronBtn.addEventListener('click', (e) => { e.stopPropagation(); this.expand(); });
-  row.appendChild(chevronBtn);
-
   mini.appendChild(row);
 
-  // Typewriter effect on placeholder
-  setTimeout(() => this._startTypewriter(ta, this._st.messages.length > 0), 80);
+  // requestAnimationFrame ile typewriter başlat — arbitrary setTimeout yerine
+  requestAnimationFrame(() => this._startTypewriter(ta, this._st.messages.length > 0));
 
   return mini;
 }
@@ -99,6 +97,9 @@ export function _buildChatPanel() {
   msgs.className = 'jw-scroll';
   msgs.style.cssText = 'flex:1;min-height:0;padding:16px;display:flex;flex-direction:column;gap:16px;overscroll-behavior:contain;' + (st.isMobile ? 'scroll-padding-top:7px;' : '');
   msgs.style.colorScheme = st.isDark ? 'dark' : 'light';
+  msgs.setAttribute('aria-live', 'polite');
+  msgs.setAttribute('aria-relevant', 'additions');
+  msgs.setAttribute('aria-label', 'Sohbet mesajları');
 
   if (st.messages.length === 0) {
     msgs.appendChild(this._buildWelcome(isCompact));
@@ -117,7 +118,7 @@ export function _buildChatPanel() {
     chat.appendChild(this._buildSuggestions(isCompact));
   }
 
-  // ── Reuse input area if compact mode unchanged ──
+  // Reuse input area if compact mode unchanged
   const existingInput = this._refs.inputArea;
   if (existingInput && !existingInput.isConnected && this._lastIsCompact === isCompact) {
     chat.appendChild(existingInput);
@@ -143,22 +144,8 @@ export function _buildHeader(isCompact) {
     'transition:border-color 0.3s;',
   ].join('');
 
-  // Close button
-  const closeBtn = document.createElement('button');
-  closeBtn.className = 'jw-btn';
-  closeBtn.title = "Jules'ı kapat";
-  closeBtn.innerHTML = ICO.PhosphorX(isCompact ? 12 : 11);
-  closeBtn.style.cssText = 'width:24px;height:24px;border-radius:8px;border:1px solid ' + T.border + ';color:' + T.textMuted + ';flex-shrink:0;transition:background 0.15s,border-color 0.15s,color 0.15s;';
-  closeBtn.addEventListener('mouseenter', () => {
-    closeBtn.style.background = 'rgba(248,113,113,0.12)';
-    closeBtn.style.borderColor = '#f87171';
-    closeBtn.style.color = '#f87171';
-  });
-  closeBtn.addEventListener('mouseleave', () => {
-    closeBtn.style.background = 'transparent';
-    closeBtn.style.borderColor = T.border;
-    closeBtn.style.color = T.textMuted;
-  });
+  // Close (minimize) button — _makeAccentBtn fixes stale isDark closure
+  const closeBtn = this._makeAccentBtn(ICO.ChevronUp(isCompact ? 13 : 12), "Jules'ı küçült");
   closeBtn.addEventListener('click', () => this.close());
   header.appendChild(closeBtn);
 
@@ -181,12 +168,13 @@ export function _buildHeader(isCompact) {
     dateRow.appendChild(wRow);
 
     const sunLabel = getSunLabel(st.weatherInfo);
-    if (sunLabel && !st.isMobile) {
+    if (sunLabel && !st.isMobile && !st.isPinnedRight) {
       const sunRow = document.createElement('div');
       sunRow.id = 'jw-sun-row';
       sunRow.style.cssText = 'display:flex;align-items:center;gap:4px;flex-shrink:0;';
+      // esc() — API kaynaklı sunrise/sunset değeri innerHTML'e yazılıyor
       sunRow.innerHTML = '<span style="color:var(--jw-accent-color);display:inline-flex;">' + ICO.SunHorizon(12) + '</span>' +
-        '<span style="font-size:10px;color:var(--jw-text-secondary);white-space:nowrap;">' + sunLabel.label + '</span>';
+        '<span style="font-size:10px;color:var(--jw-text-secondary);white-space:nowrap;">' + esc(sunLabel.label) + '</span>';
       dateRow.appendChild(sunRow);
     }
   }
@@ -195,7 +183,7 @@ export function _buildHeader(isCompact) {
   // Right controls
   const right = document.createElement('div');
   right.style.cssText = 'margin-left:auto;display:flex;align-items:center;gap:10px;flex-shrink:0;';
-  right.dataset.headerRight = '1'; // _patchHeader() targeted update için marker
+  right.dataset.headerRight = '1';
 
   if (isCompact) {
     const favCount = this._getFavCount();
@@ -216,15 +204,10 @@ export function _buildHeader(isCompact) {
 
   right.appendChild(this._buildDarkSwitch());
 
+  // Panel toggle chevron — _makeAccentBtn ile tutarlı stil
   if (!st.isPanelOpen && st.panelSessions.length > 0 && !isCompact) {
-    const chevBtn = document.createElement('button');
-    chevBtn.className = 'jw-btn';
-    chevBtn.dataset.panelChevron = '1'; // _patchHeader() targeted toggle için marker
-    chevBtn.title = 'Sonuçları göster';
-    chevBtn.innerHTML = ICO.ChevronLeft(14);
-    chevBtn.style.cssText = 'width:24px;height:24px;border-radius:8px;border:1px solid ' + T.accentDimBdr + ';background:' + T.accentDimBg + ';color:' + T.accentColor + ';transition:background 0.15s,color 0.15s;';
-    chevBtn.addEventListener('mouseenter', () => { chevBtn.style.background = 'var(--jules-secondary)'; chevBtn.style.color = '#fff'; });
-    chevBtn.addEventListener('mouseleave', () => { chevBtn.style.background = T.accentDimBg; chevBtn.style.color = T.accentColor; });
+    const chevBtn = this._makeAccentBtn(ICO.ChevronLeft(14), 'Sonuçları göster');
+    chevBtn.dataset.panelChevron = '1';
     chevBtn.addEventListener('click', () => this._handleTogglePanel());
     right.appendChild(chevBtn);
   }
@@ -273,14 +256,14 @@ export function _buildWelcome(isCompact) {
     '<p style="font-size:12px;color:' + T.textMuted + ';">Bir şeyler sorun, size en iyi sonuçları getireyim.</p>';
   wrap.appendChild(textDiv);
 
-  // Suggestion chips
+  // Suggestion chips — padding normalize edildi (suggestions bar ile aynı: 6px 12px)
   const chipsDiv = document.createElement('div');
   chipsDiv.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:8px;';
   suggestions.forEach(s => {
     const chip = document.createElement('button');
     chip.className = 'jw-btn jw-sugg-chip';
     chip.textContent = s;
-    chip.style.cssText = 'padding:8px 12px;font-size:10px;border:1px solid ' + T.accentDimBdr + ';color:' + T.textSecondary + ';border-radius:12px;font-family:inherit;transition:all 0.15s;';
+    chip.style.cssText = 'padding:6px 12px;font-size:10px;border:1px solid ' + T.accentDimBdr + ';color:' + T.textSecondary + ';border-radius:12px;font-family:inherit;transition:all 0.15s;';
     chip.addEventListener('mouseenter', () => { chip.style.borderColor = T.accentColor; chip.style.color = T.accentColor; chip.style.background = T.accentDimBg; });
     chip.addEventListener('mouseleave', () => { chip.style.borderColor = T.accentDimBdr; chip.style.color = T.textSecondary; chip.style.background = 'transparent'; });
     chip.addEventListener('click', () => this._handleSend(s));
@@ -307,6 +290,7 @@ export function _buildMessage(msg, isCompact) {
   const wrap = document.createElement('div');
   wrap.className = 'jw-msg-in';
   wrap.id = 'jw-msg-' + msg.id;
+  wrap.dataset.msgId = msg.id;
   wrap.style.cssText = 'display:flex;flex-direction:column;';
 
   const row = document.createElement('div');
@@ -328,7 +312,7 @@ export function _buildMessage(msg, isCompact) {
   bubble.style.cssText = [
     'padding:' + bubblePadding + ';font-size:' + (isCompact ? '13px' : '12px') + ';line-height:1.6;border-radius:' + (isUser ? '16px 16px 4px 16px' : '4px 16px 16px 16px') + ';',
     'background:' + (isUser ? T.userBubble : 'transparent') + ';',
-    'color:' + (isUser ? T.userBubbleTxt : (st.isDark ? '#cfe8f4' : '#1f2937')) + ';',
+    'color:' + (isUser ? T.userBubbleTxt : T.botText) + ';',
     isUser ? 'box-shadow:0 2px 8px rgba(0,0,0,var(--jw-msg-shadow-alpha));' : '',
   ].join('');
   bubble.textContent = msg.content;
@@ -411,6 +395,15 @@ export function _buildMessage(msg, isCompact) {
     wrap.appendChild(carouselWrap);
   }
 
+  // Inline form (tüm modlarda)
+  if (!isUser && msg.formType) {
+    const isSubmitted = !!st.submittedForms[msg.id];
+    const formEl = isSubmitted
+      ? this._buildFormSuccess(msg.formType, st.submittedForms[msg.id])
+      : this._buildInlineForm(msg.formType, msg.id);
+    wrap.appendChild(formEl);
+  }
+
   return wrap;
 }
 
@@ -444,7 +437,7 @@ export function _startTypewriter(ta, hasMessages) {
   const phrases = TW_PHRASES;
   let phraseIdx = 0;
   let active = true;
-  let currentTimer = null; // tek timer ref — zincirde her adım öncekini iptal eder
+  let currentTimer = null;
 
   const stop = () => {
     active = false;
@@ -462,7 +455,7 @@ export function _startTypewriter(ta, hasMessages) {
   };
 
   if (hasMessages) {
-    // Mesaj varsa: "Size nasıl yardımcı olabilirim?" yaz ve kal — sil/döngü yok
+    // Mesaj varsa: "Size nasıl yardımcı olabilirim?" yaz ve kal
     const phrase = MINI_RETURN_PHRASE;
     const typeOnce = (charIdx) => {
       if (!active) return;
@@ -470,7 +463,6 @@ export function _startTypewriter(ta, hasMessages) {
       if (charIdx < phrase.length) {
         schedule(() => typeOnce(charIdx + 1), 62);
       }
-      // Tam yazıldığında dur — erase çağrılmaz
     };
     typeOnce(0);
   } else {
@@ -500,7 +492,7 @@ export function _startTypewriter(ta, hasMessages) {
   }
 }
 
-// ── Suggestions ────────────────────────────────────────────────────────────────
+// ── Suggestions Bar ────────────────────────────────────────────────────────────
 export function _buildSuggestions(isCompact) {
   const T  = this._T();
   const st = this._st;
@@ -519,7 +511,7 @@ export function _buildSuggestions(isCompact) {
   const fadeL = document.createElement('div');
   fadeL.style.cssText = 'position:absolute;left:0;top:0;bottom:0;width:32px;pointer-events:none;z-index:10;opacity:0;display:flex;align-items:center;padding-left:4px;';
 
-  if (!st.isMobile) {
+  if (!isCompact) {
     const btnL = document.createElement('button');
     btnL.className = 'jw-btn jw-sugg-arrow jw-sugg-arrow-l';
     btnL.innerHTML = ICO.ChevronLeft(14);
@@ -533,7 +525,7 @@ export function _buildSuggestions(isCompact) {
   const fadeR = document.createElement('div');
   fadeR.style.cssText = 'position:absolute;right:0;top:0;bottom:0;width:32px;pointer-events:none;z-index:10;opacity:0;display:flex;align-items:center;justify-content:flex-end;padding-right:4px;';
 
-  if (!st.isMobile) {
+  if (!isCompact) {
     const btnR = document.createElement('button');
     btnR.className = 'jw-btn jw-sugg-arrow jw-sugg-arrow-r';
     btnR.innerHTML = ICO.ChevronRight(14);
@@ -580,6 +572,6 @@ export function _buildSuggestions(isCompact) {
   inner.appendChild(bar);
   wrap.appendChild(inner);
 
-  setTimeout(updateFade, 60);
+  requestAnimationFrame(updateFade);
   return wrap;
 }

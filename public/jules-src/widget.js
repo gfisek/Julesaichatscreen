@@ -13,7 +13,10 @@
 
 import { SHADOW_CSS }         from './css.js';
 import { debounce,
-         registerOrbitProperty } from './utils.js';
+         registerOrbitProperty,
+         lockBodyScroll,
+         unlockBodyScroll,
+         forceUnlockBodyScroll } from './utils.js';
 import { DEFAULT_CONFIG,
          DEFAULT_CARDS }       from './constants.js';
 
@@ -23,10 +26,26 @@ import * as renderInput    from './render-input.js';
 import * as renderContent  from './render-content.js';
 import * as handlers       from './handlers.js';
 import * as helpers        from './helpers.js';
+import * as renderForm     from './render-form.js';
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// Mixin çakışma tespiti — yalnızca debug modunda çalışır (production'da console kirliliği önlenir)
+(function checkMixinConflicts() {
+  if (typeof location === 'undefined' || (!location.search.includes('jw-debug') && !location.hostname.includes('localhost'))) return;
+  const modules = [renderChat, renderInput, renderContent, handlers, helpers, renderForm];
+  const seen = new Set();
+  modules.forEach(mod => {
+    Object.keys(mod).forEach(key => {
+      if (seen.has(key)) {
+        console.warn('[JulesWidget] ⚠ Mixin çakışması: "' + key + '" birden fazla modülde tanımlı.');
+      }
+      seen.add(key);
+    });
+  });
+})();
+
+// ══════════════════════════════════════════════════════════════════════════════
 // JulesWidget — Web Component
-// ═══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════════
 class JulesWidget extends HTMLElement {
 
   static get observedAttributes() {
@@ -39,52 +58,61 @@ class JulesWidget extends HTMLElement {
     this._timers = {};
     this._resizeBound = debounce(this._onResize.bind(this), 120);
 
-    // ── State ──────────────────────────────────────────────────────────────────
+    // ── State ────────────────────────────────────────────────────────────────
     this._st = {
-      isOpen:              false,
-      isMinimized:         true,   // Default: MiniJules görünür
-      messages:            [],
-      isTyping:            false,
-      activeCardMsgId:     null,
-      panelSessions:       [],
-      cardData:            {},
-      isPanelOpen:         false,
-      isMobile:            window.innerWidth < 768,
-      likedCards:          new Set(),
-      isDark:              false,
-      isPinnedRight:       false,
-      emojiIndex:          0,
-      emojiPhase:          'visible',   // 'visible' | 'out' | 'in'
-      weatherInfo:         null,
-      inputValue:          '',
-      votes:               {},
-      showFavDrawer:       false,
+      isOpen:               false,
+      isMinimized:          true,
+      messages:             [],
+      isTyping:             false,
+      activeCardMsgId:      null,
+      panelSessions:        [],
+      cardData:             {},
+      isPanelOpen:          false,
+      isMobile:             window.innerWidth < 768,
+      likedCards:           new Set(), // Set JSON serileştirilemez; persist için [...likedCards] kullan
+      isDark:               false,
+      isPinnedRight:        false,
+      emojiIndex:           0,
+      emojiPhase:           'visible',
+      weatherInfo:          null,
+      inputValue:           '',
+      votes:                {},
+      showFavDrawer:        false,
       showFavoritesInPanel: false,
-      activeCardIndices:   {},
-      defaultReplyIndex:   0,
-      copied:              null,
-      drawerDragY:         0,
-      isListening:         false,
+      activeCardIndices:    {},
+      defaultReplyIndex:    0,
+      copied:               null,
+      drawerDragY:          0,
+      isListening:          false,
+      kvkkAccepted:         false,
+      submittedForms:       {},
+      isSpeaking:           false,
     };
 
     this._config = Object.assign({}, DEFAULT_CONFIG);
     this._cards  = Object.assign({}, DEFAULT_CARDS);
 
-    this._bodyOverflow  = '';
-    this._recognition   = null;
-    this._preVoiceText  = '';
-    this._refs          = {};
-    this._twStop        = null;
-    this._lastIsCompact = null;
-    this._tCache        = null;    // _T() sonucu — CSS var ref'leri sabit, tek seferlik cache
-    this._weatherAbort  = null;    // AbortController — fetch iptal için
-    this._favCountCache = undefined; // _getFavCount() cache — like'da invalidate edilir
+    this._bodyOverflow         = '';
+    this._recognition          = null;
+    this._preVoiceText         = '';
+    this._refs                 = {};
+    this._twStop               = null;
+    this._lastIsCompact        = null;
+    this._tCache               = null;      // _T() sonucu — CSS var ref'leri sabit, tek seferlik cache
+    this._weatherAbort         = null;      // AbortController — fetch iptal için
+    this._favCountCache        = undefined; // _getFavCount() cache — like'da invalidate edilir
+    this._focusTrapHandler     = null;
+    this._escHandler           = null;
+    this._pendingConsentAction = null;
+    this._miniFirstOpen        = true;      // İlk miniJules açılışı için özel animasyon flag'i
+    this._introShown           = false;     // Session intro animasyon flag'i
   }
 
-  // ── Lifecycle ─────────────────────────────────────────────────────────────────
+  // ── Lifecycle ────────────────────────────────────────────────────────────────
   connectedCallback() {
     registerOrbitProperty();
     this._injectCSS();
+    this._initScrollbarFade();
     this._loadData().then(() => {
       this._build();
       window.addEventListener('resize', this._resizeBound);
@@ -97,12 +125,25 @@ class JulesWidget extends HTMLElement {
 
   disconnectedCallback() {
     window.removeEventListener('resize', this._resizeBound);
+    // Tüm kayıtlı timer'ları (intro_seq_* dahil) temizle
     Object.keys(this._timers).forEach(k => clearTimeout(this._timers[k]));
     if (this._weatherAbort) { this._weatherAbort.abort(); this._weatherAbort = null; }
+    if (this._scrollFadeHandler) {
+      this._shadow.removeEventListener('scroll', this._scrollFadeHandler, { capture: true });
+      this._scrollFadeHandler = null;
+    }
+    if (this._scrollFadeTimers) {
+      this._scrollFadeTimers.forEach(timer => clearTimeout(timer));
+      this._scrollFadeTimers.clear();
+      this._scrollFadeTimers = null;
+    }
+    if (this._st.isOpen && !this._st.isMinimized) forceUnlockBodyScroll();
+    this._removeFocusTrap();
+    this._stopEmojiCycle();
+    if (this._cleanupMobileKeyboard) { this._cleanupMobileKeyboard(); this._cleanupMobileKeyboard = null; }
   }
 
   attributeChangedCallback(name, oldVal, newVal) {
-    // Guard: Shadow DOM henüz build edilmediyse işlem yapma
     if (!this._refs.overlay && !this._shadow.getElementById('jw-mini')) return;
     if (name === 'open') { newVal !== null ? this.open() : this.close(); }
     if (name === 'dark') { this._st.isDark = newVal !== null; this._applyTheme(); }
@@ -120,33 +161,31 @@ class JulesWidget extends HTMLElement {
     const box     = this._refs.box;
     const overlay = this._refs.overlay;
 
+    this._removeFocusTrap();
+
     if (box) {
-      // Jules box'ı fiziksel ivmeyle yukarı fırlat
       box.style.transition = 'transform 350ms cubic-bezier(0.4,0,0.9,0.08), opacity 300ms ease';
       box.style.transform  = 'translateY(-160px)';
       box.style.opacity    = '0';
 
-      // Overlay arka planını soldur
       if (overlay) {
-        overlay.style.transition   = 'background 300ms ease, backdrop-filter 300ms ease';
-        overlay.style.background   = 'transparent';
-        overlay.style.backdropFilter = 'none';
+        overlay.style.transition         = 'background 300ms ease, backdrop-filter 300ms ease';
+        overlay.style.background         = 'transparent';
+        overlay.style.backdropFilter     = 'none';
         overlay.style.webkitBackdropFilter = 'none';
       }
 
       setTimeout(() => {
         this._st.isOpen      = false;
         this._st.isMinimized = true;
-        document.body.style.overflow = this._bodyOverflow || '';
-        this._bodyOverflow = '';
+        unlockBodyScroll();
         this.dispatchEvent(new CustomEvent('jules:minimize'));
         this._build();
       }, 350);
     } else {
       this._st.isOpen      = false;
       this._st.isMinimized = true;
-      document.body.style.overflow = this._bodyOverflow || '';
-      this._bodyOverflow = '';
+      unlockBodyScroll();
       this.dispatchEvent(new CustomEvent('jules:minimize'));
       this._build();
     }
@@ -156,16 +195,20 @@ class JulesWidget extends HTMLElement {
   expand() {
     if (!this._st.isMinimized) return;
 
+    if (!this._introShown) {
+      this._introShown = true;
+      this._runIntroSequence();
+      return;
+    }
+
     if (this._twStop) { this._twStop(); this._twStop = null; }
 
     this._st.isMinimized = false;
     this._st.isOpen      = true;
-    this._bodyOverflow   = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    lockBodyScroll();
 
     this._build();
 
-    // Yukarıdan spring ile aşağı gelsin — fiziksel hissettirsin
     const box = this._refs.box;
     if (box) {
       box.style.transform  = 'translateY(-160px)';
@@ -179,138 +222,134 @@ class JulesWidget extends HTMLElement {
         });
       });
     }
+
+    this._installFocusTrap();
+    this._startEmojiCycle();
+    this._timers.expandFocus = setTimeout(() => {
+      const first = this._shadow.querySelector('button:not([disabled])');
+      if (first) first.focus();
+    }, 450);
   }
 
-  // ── Data Loading ──────────────────────────────────────────────────────────────
+  // ── Data Loading ─────────────────────────────────────────────────────────────
   async _loadData() {
     const configUrl = this.getAttribute('config-url') || './jules-widget/config.json';
     const cardsUrl  = this.getAttribute('cards-url')  || './jules-widget/cards.json';
     try {
       const [cfgRes, cardsRes] = await Promise.all([fetch(configUrl), fetch(cardsUrl)]);
-      if (cfgRes.ok)   this._config = await cfgRes.json();
-      if (cardsRes.ok) this._cards  = await cardsRes.json();
+      if (cfgRes.ok) {
+        const cfg = await cfgRes.json();
+        // Temel şema doğrulaması — Array veya primitive gelirse varsayılan korunur
+        if (cfg && typeof cfg === 'object' && !Array.isArray(cfg)) {
+          this._config = cfg;
+        }
+      }
+      if (cardsRes.ok) {
+        const cards = await cardsRes.json();
+        // datasets ve scenarios varlığını doğrula — eksikse crash önlenir
+        if (cards && typeof cards === 'object' && !Array.isArray(cards)) {
+          this._cards = {
+            datasets:  cards.datasets  && typeof cards.datasets  === 'object' ? cards.datasets  : {},
+            scenarios: Array.isArray(cards.scenarios) ? cards.scenarios : [],
+          };
+        }
+      }
     } catch (e) {
       console.warn('[JulesWidget] Config/cards yüklenemedi, varsayılanlar kullanılıyor:', e.message);
     }
     this._applyCSSVars();
   }
 
+  // ── Config CSS değişkeni güvenli setter ────────────────────────────────────
   _applyCSSVars() {
+    const VALID_COLOR = /^#[0-9a-fA-F]{3,8}$|^rgba?\s*\(.+\)$|^hsla?\s*\(.+\)$|^[a-z]+$/i;
     const c    = this._config.colors || {};
     const f    = this._config.font   || {};
     const host = this._shadow.host;
-    if (c.primary)     host.style.setProperty('--jules-primary',      c.primary);
-    if (c.secondary)   host.style.setProperty('--jules-secondary',    c.secondary);
-    if (c.accent)      host.style.setProperty('--jules-accent',       c.accent);
-    if (c.accentLight) host.style.setProperty('--jules-accent-light', c.accentLight);
-    if (c.accentBg)    host.style.setProperty('--jules-accent-bg',    c.accentBg);
-    if (f.family)      host.style.setProperty('--jules-font',         f.family);
+
+    const setSafe = (prop, val) => {
+      if (val && typeof val === 'string' && VALID_COLOR.test(val.trim())) {
+        host.style.setProperty(prop, val.trim());
+      }
+    };
+
+    setSafe('--jules-primary',      c.primary);
+    setSafe('--jules-secondary',    c.secondary);
+    setSafe('--jules-accent',       c.accent);
+    setSafe('--jules-accent-light', c.accentLight);
+    setSafe('--jules-accent-bg',    c.accentBg);
+
+    if (f.family && typeof f.family === 'string' && f.family.length < 200 && !/[<>"']/.test(f.family)) {
+      host.style.setProperty('--jules-font', f.family);
+    }
   }
 
-  // ── CSS Injection ─────────────────────────────────────────────────────────────
+  // ── CSS Injection ──────────────────────────────────────────────────────────
   _injectCSS() {
     const sheet = new CSSStyleSheet();
     sheet.replaceSync(SHADOW_CSS);
     this._shadow.adoptedStyleSheets = [sheet];
   }
 
-  // ── Theme ─────────────────────────────────────────────────────────────────────
-  /**
-   * _T() — CSS custom property referansları döndürür.
-   * :host / :host([data-dark]) kuralları gerçek değerleri sağlar.
-   *
-   * Tüm değerler sabit CSS var() string'leri — tarayıcı cascade'de çözümlenir.
-   * Nesne bir kez oluşturulur ve instance ömrü boyunca cache'de tutulur.
-   */
-  _T() {
-    if (this._tCache) return this._tCache;
-    this._tCache = {
-      bg:            'var(--jw-bg)',
-      outerBg:       'var(--jw-outer-bg)',
-      border:        'var(--jw-border)',
-      textPrimary:   'var(--jw-text-primary)',
-      textSecondary: 'var(--jw-text-secondary)',
-      textMuted:     'var(--jw-text-muted)',
-      userBubble:    'var(--jw-user-bubble)',
-      userBubbleTxt: 'var(--jw-user-bubble-txt)',
-      inputBg:       'var(--jw-input-bg)',
-      placeholder:   'var(--jw-placeholder)',
-      accentColor:   'var(--jw-accent-color)',
-      accentDimBg:   'var(--jw-accent-dim-bg)',
-      accentDimBdr:  'var(--jw-accent-dim-bdr)',
-      bgCard:        'var(--jw-card-bg)',
-      borderCard:    'var(--jw-card-border)',
-      bgSticky:      'var(--jw-sticky-bg)',
-      bgHeader:      'var(--jw-header-bg)',
+  // ── Scrollbar fade: Shadow DOM içi scroll'larda .jw-scrolling class yönetimi
+  _initScrollbarFade() {
+    this._scrollFadeTimers = new Map();
+    this._scrollFadeHandler = (e) => {
+      const target = e.target;
+      if (!target || typeof target.classList === 'undefined') return;
+
+      target.classList.add('jw-scrolling');
+
+      const existing = this._scrollFadeTimers.get(target);
+      if (existing !== undefined) clearTimeout(existing);
+
+      const timer = setTimeout(() => {
+        target.classList.remove('jw-scrolling');
+        this._scrollFadeTimers.delete(target);
+      }, 800);
+
+      this._scrollFadeTimers.set(target, timer);
     };
-    return this._tCache;
+    this._shadow.addEventListener('scroll', this._scrollFadeHandler, { capture: true, passive: true });
   }
 
-  /**
-   * _applyTheme: data-dark toggle → CSS cascade --jw-* token'ları günceller.
-   * Yalnızca CSS variable dışı bağımlılıklar için hedefli DOM güncellemeleri yapılır.
-   */
+  // ── Theme ──────────────────────────────────────────────────────────────────
   _applyTheme() {
     const isDark = this._st.isDark;
     const host   = this._shadow.host;
 
-    // 1. CSS cascade
     isDark ? host.setAttribute('data-dark', '') : host.removeAttribute('data-dark');
 
-    // 2. colorScheme (scrollbar rengi)
     if (this._refs.msgs) this._refs.msgs.style.colorScheme = isDark ? 'dark' : 'light';
     const sessionList = this._shadow.querySelector('#jw-content > .jw-scroll');
     if (sessionList) sessionList.style.colorScheme = isDark ? 'dark' : 'light';
 
-    // 3. Orbit ring sınıfı
-    if (this._refs.inputOrbit) {
-      this._refs.inputOrbit.className = isDark ? 'jw-orbit-dark' : 'jw-orbit-light';
-    }
-    // MiniJules orbit ring
-    if (this._refs.miniOrbitBg) {
-      this._refs.miniOrbitBg.className = isDark ? 'jw-orbit-dark' : 'jw-orbit-light';
-    }
+    if (this._refs.inputOrbit)  this._refs.inputOrbit.className  = isDark ? 'jw-orbit-dark' : 'jw-orbit-light';
+    if (this._refs.miniOrbitBg) this._refs.miniOrbitBg.className = isDark ? 'jw-orbit-dark' : 'jw-orbit-light';
 
-    // 4. Dark switch → yerinde yeniden kur
-    const dsBtn = this._shadow.getElementById('jw-dark-switch');
-    if (dsBtn && dsBtn.parentElement && dsBtn.parentElement.parentElement) {
-      dsBtn.parentElement.parentElement.replaceChild(this._buildDarkSwitch(), dsBtn.parentElement);
-    }
-
-    // 5. Pin switch → yerinde yeniden kur
-    const psBtn = this._shadow.getElementById('jw-pin-switch');
-    if (psBtn && psBtn.parentElement && psBtn.parentElement.parentElement) {
-      psBtn.parentElement.parentElement.replaceChild(this._buildPinSwitch(), psBtn.parentElement);
-    }
-
-    // 6. Panel toggle switch → track gradientleri isDark'a bağlı
-    const ptBtn = this._shadow.getElementById('jw-panel-toggle-switch');
-    if (ptBtn && ptBtn.parentElement) {
-      ptBtn.parentElement.replaceChild(this._buildPanelToggleSwitch(), ptBtn);
-    }
-  }
-
-  // ── Open/Close ────────────────────────────────────────────────────────────────
-  _applyOpenState() {
-    if (this._st.isMinimized) return; // MiniJules modu — overlay yok
-    const ov = this._refs.overlay;
-    if (!ov) return;
-    const st = this._st;
-
-    ov.classList.toggle('jw-active', st.isOpen);
-    ov.classList.toggle('jw-open',   st.isOpen && !st.isPinnedRight);
-    ov.classList.toggle('jw-pinned', st.isOpen && !!st.isPinnedRight);
-
-    if (st.isOpen) {
-      this._bodyOverflow = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
+    // Switch'leri _syncTheme ile güncelle — replaceChild yok, event listener korunur
+    const dsWrap = this._shadow.getElementById('jw-dark-switch')?.parentElement;
+    if (dsWrap?._syncTheme) {
+      dsWrap._syncTheme(isDark);
     } else {
-      document.body.style.overflow = this._bodyOverflow || '';
-      this._bodyOverflow = '';
+      const dsBtn = this._shadow.getElementById('jw-dark-switch');
+      if (dsBtn?.parentElement?.parentElement) {
+        dsBtn.parentElement.parentElement.replaceChild(this._buildDarkSwitch(), dsBtn.parentElement);
+      }
+    }
+
+    const psWrap = this._shadow.getElementById('jw-pin-switch')?.parentElement;
+    if (psWrap?._syncTheme) {
+      psWrap._syncTheme(isDark);
+    } else {
+      const psBtn = this._shadow.getElementById('jw-pin-switch');
+      if (psBtn?.parentElement?.parentElement) {
+        psBtn.parentElement.parentElement.replaceChild(this._buildPinSwitch(), psBtn.parentElement);
+      }
     }
   }
 
-  // ── Resize ────────────────────────────────────────────────────────────────────
+  // ── Resize ────────────────────────────────────────────────────────────────
   _onResize() {
     const wasMobile = this._st.isMobile;
     this._st.isMobile = window.innerWidth < 768;
@@ -323,22 +362,19 @@ class JulesWidget extends HTMLElement {
     }
   }
 
-  // ── Main Build ────────────────────────────────────────────────────────────────
+  // ── Main Build ────────────────────────────────────────────────────────────
   _build() {
     const sh = this._shadow;
     const st = this._st;
 
-    // ── Input area reuse logic ──
     const isCompact = st.isMobile || st.isPinnedRight;
     const canReuseInput = !st.isMinimized && this._refs.inputArea &&
       this._lastIsCompact === isCompact;
 
-    // Stop typewriter only when input will be rebuilt
     if (!canReuseInput) {
       if (this._twStop) { this._twStop(); this._twStop = null; }
     }
 
-    // Detach reusable input area before clearing Shadow DOM
     if (canReuseInput && this._refs.inputArea.isConnected) {
       this._refs.inputArea.remove();
     }
@@ -346,11 +382,10 @@ class JulesWidget extends HTMLElement {
     sh.innerHTML = '';
 
     const T  = this._T();
-
     const host = this._shadow.host;
     st.isDark ? host.setAttribute('data-dark', '') : host.removeAttribute('data-dark');
 
-    // ── MiniJules modu: sadece küçük bar ────────────────────────────────────
+    // MiniJules modu
     if (st.isMinimized) {
       sh.appendChild(this._buildMiniJules());
       this._lastIsCompact = null;
@@ -360,9 +395,12 @@ class JulesWidget extends HTMLElement {
       return;
     }
 
-    // Overlay
+    // Overlay — dialog semantiği (ekran okuyucular modalı tanır)
     const overlay = document.createElement('div');
     overlay.id = 'jw-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', 'Jules AI Asistan');
     if (st.isOpen) {
       overlay.classList.add('jw-active');
       if (st.isPinnedRight) overlay.classList.add('jw-pinned');
@@ -392,10 +430,7 @@ class JulesWidget extends HTMLElement {
     // Inner wrapper
     const inner = document.createElement('div');
     inner.style.cssText = 'display:flex;width:100%;height:100%;overflow:hidden;margin:0 auto;';
-    if (st.isPinnedRight && !st.isMobile) {
-      inner.style.flexDirection = 'column';
-      inner.style.maxWidth = '100%';
-    } else if (st.isMobile) {
+    if (isCompact) {
       inner.style.flexDirection = 'column';
       inner.style.maxWidth = '100%';
     } else {
@@ -420,22 +455,68 @@ class JulesWidget extends HTMLElement {
     overlay.appendChild(box);
     sh.appendChild(overlay);
 
-    // Fav drawer
     if (st.showFavDrawer) {
       sh.appendChild(this._buildFavDrawer());
     }
 
     this._lastIsCompact = isCompact;
     this._scrollToLastMessage();
+
+    // _build() sonrası focus trap restore — panel toggle ve resize sonrası kaybolmaması için
+    if (!st.isMinimized && st.isOpen) {
+      this._installFocusTrap();
+    }
+  }
+
+  // ── Focus Trap — Shadow DOM uyumlu, dinamik element listeli ──────────────
+  _installFocusTrap() {
+    const overlay = this._refs.overlay;
+    if (!overlay) return;
+
+    const FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+    // this._shadow.activeElement ile Shadow DOM'da doğru odak tespiti
+    this._focusTrapHandler = (e) => {
+      if (e.key !== 'Tab') return;
+      const focusables = [...overlay.querySelectorAll(FOCUSABLE_SELECTOR)];
+      if (!focusables.length) return;
+
+      const active = this._shadow.activeElement;
+      const first  = focusables[0];
+      const last   = focusables[focusables.length - 1];
+
+      if (e.shiftKey) {
+        if (active === first || !focusables.includes(active)) { last.focus(); e.preventDefault(); }
+      } else {
+        if (active === last  || !focusables.includes(active)) { first.focus(); e.preventDefault(); }
+      }
+    };
+
+    this._escHandler = (e) => {
+      if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); this.close(); }
+    };
+
+    overlay.addEventListener('keydown', this._focusTrapHandler);
+    overlay.addEventListener('keydown', this._escHandler);
+  }
+
+  _removeFocusTrap() {
+    const overlay = this._refs.overlay;
+    if (!overlay) return;
+    overlay.removeEventListener('keydown', this._focusTrapHandler);
+    overlay.removeEventListener('keydown', this._escHandler);
+    this._focusTrapHandler = null;
+    this._escHandler       = null;
   }
 }
 
-// ── Prototype mixin — render + handler + helper metodları ─────────────────────
+// ── Prototype mixin ───────────────────────────────────────────────────────────
 Object.assign(JulesWidget.prototype, renderChat);
 Object.assign(JulesWidget.prototype, renderInput);
 Object.assign(JulesWidget.prototype, renderContent);
 Object.assign(JulesWidget.prototype, handlers);
 Object.assign(JulesWidget.prototype, helpers);
+Object.assign(JulesWidget.prototype, renderForm);
 
 // ── Kayıt ─────────────────────────────────────────────────────────────────────
 if (!customElements.get('jules-widget')) {

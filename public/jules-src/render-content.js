@@ -6,7 +6,7 @@
  */
 import { ICO }                    from './icons.js';
 import { esc, formatTime,
-         heartHtml }              from './utils.js';
+         heartHtml, isSafeUrl }   from './utils.js';
 
 // ── Content Panel ──────────────────────────────────────────────────────────────
 export function _buildContentPanel() {
@@ -26,14 +26,8 @@ export function _buildContentPanel() {
   const cpHRow = document.createElement('div');
   cpHRow.style.cssText = 'display:flex;align-items:center;gap:8px;';
 
-  // Close CP button
-  const cpClose = document.createElement('button');
-  cpClose.className = 'jw-btn';
-  cpClose.title = 'Sonuçları gizle';
-  cpClose.innerHTML = ICO.ChevronRight(14);
-  cpClose.style.cssText = 'width:24px;height:24px;border-radius:8px;border:1px solid ' + T.accentDimBdr + ';background:' + T.accentDimBg + ';color:' + T.accentColor + ';flex-shrink:0;transition:background 0.15s,color 0.15s;';
-  cpClose.addEventListener('mouseenter', () => { cpClose.style.background = 'var(--jules-secondary)'; cpClose.style.color = '#fff'; cpClose.style.borderColor = 'var(--jules-secondary)'; });
-  cpClose.addEventListener('mouseleave', () => { const TT = this._T(); cpClose.style.background = TT.accentDimBg; cpClose.style.color = TT.accentColor; cpClose.style.borderColor = TT.accentDimBdr; });
+  // Close CP button — _makeAccentBtn fixes stale isDark closure
+  const cpClose = this._makeAccentBtn(ICO.ChevronRight(14), 'Sonuçları gizle');
   cpClose.addEventListener('click', () => this._handleClosePanel());
   cpHRow.appendChild(cpClose);
 
@@ -66,7 +60,7 @@ export function _buildContentPanel() {
   statsSpan.textContent = st.panelSessions.length + ' cevap · ' + totalResults + ' sonuç';
   cpStats.appendChild(statsSpan);
 
-  const favCount  = this._getFavCount();
+  const favCount   = this._getFavCount();
   const isFavActive = st.showFavoritesInPanel;
   const favBtn = document.createElement('button');
   favBtn.className = 'jw-btn';
@@ -108,7 +102,7 @@ export function _buildContentPanel() {
   cp.appendChild(sessionList);
 
   if (st.activeCardMsgId) {
-    setTimeout(() => {
+    this._timers.cpScroll = setTimeout(() => {
       const el = sessionList.querySelector('[data-session-id="' + st.activeCardMsgId + '"]');
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
@@ -237,6 +231,7 @@ export function _buildCarousel(cards, sessionId) {
     const dot = document.createElement('button');
     dot.className = 'jw-btn jw-dot' + (i === activeIdx ? ' active' : '');
     dot.style.cssText = 'width:' + (i === activeIdx ? '16px' : '6px') + ';height:6px;border-radius:3px;background:' + (i === activeIdx ? T.accentColor : (st.isDark ? '#3a6075' : '#9ca3af')) + ';transition:all 0.25s ease;';
+    dot.setAttribute('aria-label', 'Kart ' + (i + 1));
     dot.addEventListener('click', () => {
       const el  = cardEls[i];
       const cx  = el.offsetLeft + el.offsetWidth / 2;
@@ -249,18 +244,25 @@ export function _buildCarousel(cards, sessionId) {
     return dot;
   });
 
+  // requestAnimationFrame ile throttle — yüksek frekanslı scroll hesaplamalarını önle
+  let scrollTicking = false;
   scrollEl.addEventListener('scroll', () => {
-    const center = scrollEl.scrollLeft + scrollEl.clientWidth / 2;
-    let closest = 0, closestD = Infinity;
-    cardEls.forEach((el, i) => {
-      const cx = el.offsetLeft + el.offsetWidth / 2;
-      const d  = Math.abs(cx - center);
-      if (d < closestD) { closestD = d; closest = i; }
+    if (scrollTicking) return;
+    scrollTicking = true;
+    requestAnimationFrame(() => {
+      const center = scrollEl.scrollLeft + scrollEl.clientWidth / 2;
+      let closest = 0, closestD = Infinity;
+      cardEls.forEach((el, i) => {
+        const cx = el.offsetLeft + el.offsetWidth / 2;
+        const d  = Math.abs(cx - center);
+        if (d < closestD) { closestD = d; closest = i; }
+      });
+      if (closest !== st.activeCardIndices[sessionId]) {
+        st.activeCardIndices[sessionId] = closest;
+        this._updateDots(dotEls, closest, T);
+      }
+      scrollTicking = false;
     });
-    if (closest !== st.activeCardIndices[sessionId]) {
-      st.activeCardIndices[sessionId] = closest;
-      this._updateDots(dotEls, closest, T);
-    }
   }, { passive: true });
 
   wrap.appendChild(scrollEl);
@@ -276,9 +278,19 @@ export function _updateDots(dotEls, activeIdx, T) {
 }
 
 // ── Card View ──────────────────────────────────────────────────────────────────
+// Hatalı/eksik card objesi için güvenli guard
 export function _buildCardView(card, sessionId, liked) {
-  const T  = this._T();
-  const st = this._st;
+  if (!card || !card.id) {
+    const fallback = document.createElement('div');
+    fallback.style.cssText = 'padding:16px;text-align:center;font-size:11px;color:var(--jw-text-muted);border:1px dashed var(--jw-border);border-radius:3px;';
+    fallback.textContent = 'Kart yüklenemedi';
+    return fallback;
+  }
+
+  const T       = this._T();
+  const st      = this._st;
+  // isMobile || isPinnedRight — pinned carousel'daki kartlar da kompakt boyut alır
+  const isCmpct = st.isMobile || st.isPinnedRight;
   const likeKey = sessionId + '-' + card.id;
 
   const wrap = document.createElement('div');
@@ -288,13 +300,14 @@ export function _buildCardView(card, sessionId, liked) {
   wrap.addEventListener('mouseleave', () => { wrap.style.borderColor = this._T().borderCard; });
 
   if (card.noImage) {
+    // ── No-image variant ──────────────────────────────────────────────────────
     const content = document.createElement('div');
-    content.style.cssText = 'display:flex;flex-direction:column;flex:1;padding:12px;gap:10px;';
+    content.style.cssText = 'display:flex;flex-direction:column;flex:1;padding:12px;gap:8px;';
 
     const topRow = document.createElement('div');
     topRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;';
     if (card.badge) {
-      topRow.innerHTML = '<div style="display:flex;align-items:center;gap:6px;"><div style="width:2px;height:10px;background:var(--jules-accent-light);border-radius:1px;"></div><span style="font-size:' + (st.isMobile ? '10px' : '9px') + ';font-weight:700;letter-spacing:0.08em;color:var(--jules-accent-light);">' + esc(card.badge.toLocaleUpperCase('tr-TR')) + '</span></div>';
+      topRow.innerHTML = '<div style="display:flex;align-items:center;gap:6px;"><div style="width:2px;height:10px;background:var(--jules-accent-light);border-radius:1px;"></div><span style="font-size:' + (isCmpct ? '10px' : '9px') + ';font-weight:700;letter-spacing:0.08em;color:var(--jules-accent-light);">' + esc(card.badge.toLocaleUpperCase('tr-TR')) + '</span></div>';
     } else {
       topRow.innerHTML = '<div></div>';
     }
@@ -302,29 +315,44 @@ export function _buildCardView(card, sessionId, liked) {
     content.appendChild(topRow);
 
     const title = document.createElement('p');
-    title.style.cssText = 'font-weight:600;font-size:' + (st.isMobile ? '13px' : '12px') + ';letter-spacing:-0.01em;color:' + T.textPrimary + ';line-height:1.4;';
+    title.style.cssText = 'font-weight:600;font-size:' + (isCmpct ? '13px' : '12px') + ';letter-spacing:-0.01em;color:' + T.textPrimary + ';line-height:1.4;';
     title.textContent = card.title;
     content.appendChild(title);
+
+    // Subtitle — yeni alan
+    if (card.subtitle) {
+      const sub = document.createElement('p');
+      sub.style.cssText = 'font-size:' + (isCmpct ? '11px' : '10px') + ';color:' + T.textMuted + ';line-height:1.3;margin-top:-2px;';
+      sub.textContent = card.subtitle;
+      content.appendChild(sub);
+    }
 
     const descWrap = document.createElement('div');
     descWrap.style.cssText = 'flex:1;overflow:hidden;';
     const desc = document.createElement('p');
-    desc.style.cssText = 'font-size:' + (st.isMobile ? '12px' : '11px') + ';color:' + T.textPrimary + ';line-height:1.6;display:-webkit-box;-webkit-line-clamp:11;-webkit-box-orient:vertical;overflow:hidden;';
+    desc.style.cssText = 'font-size:' + (isCmpct ? '12px' : '11px') + ';color:' + T.textPrimary + ';line-height:1.6;display:-webkit-box;-webkit-line-clamp:11;-webkit-box-orient:vertical;overflow:hidden;';
     desc.textContent = card.description;
     descWrap.appendChild(desc);
     content.appendChild(descWrap);
 
     content.appendChild(this._buildCtaBtn(card));
     wrap.appendChild(content);
+
   } else {
+    // ── Photo variant ─────────────────────────────────────────────────────────
     const imgWrap = document.createElement('div');
     imgWrap.style.cssText = 'position:relative;overflow:hidden;aspect-ratio:4/3;';
 
     const img = document.createElement('img');
     img.className = 'jw-card-img';
-    img.src = card.image;
     img.alt = card.title;
     img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+    // isSafeUrl — javascript:/data: protokollerini reddeder
+    if (isSafeUrl(card.image)) {
+      img.src = card.image;
+    } else {
+      imgWrap.style.background = T.bgSticky;
+    }
     img.onerror = () => { imgWrap.style.background = T.bgSticky; img.style.display = 'none'; };
     imgWrap.appendChild(img);
 
@@ -336,19 +364,27 @@ export function _buildCardView(card, sessionId, liked) {
     wrap.appendChild(imgWrap);
 
     const contentBottom = document.createElement('div');
-    contentBottom.style.cssText = 'display:flex;flex-direction:column;gap:10px;padding:12px;';
+    contentBottom.style.cssText = 'display:flex;flex-direction:column;gap:8px;padding:12px;';
 
     if (card.badge) {
-      contentBottom.innerHTML = '<div style="display:flex;align-items:center;gap:6px;"><div style="width:2px;height:10px;background:var(--jules-accent-light);border-radius:1px;"></div><span style="font-size:' + (st.isMobile ? '10px' : '9px') + ';font-weight:700;letter-spacing:0.08em;color:var(--jules-accent-light);">' + esc(card.badge.toLocaleUpperCase('tr-TR')) + '</span></div>';
+      contentBottom.innerHTML = '<div style="display:flex;align-items:center;gap:6px;"><div style="width:2px;height:10px;background:var(--jules-accent-light);border-radius:1px;"></div><span style="font-size:' + (isCmpct ? '10px' : '9px') + ';font-weight:700;letter-spacing:0.08em;color:var(--jules-accent-light);">' + esc(card.badge.toLocaleUpperCase('tr-TR')) + '</span></div>';
     }
 
     const title = document.createElement('p');
-    title.style.cssText = 'font-weight:600;font-size:' + (st.isMobile ? '13px' : '12px') + ';letter-spacing:-0.01em;color:' + T.textPrimary + ';line-height:1.3;';
+    title.style.cssText = 'font-weight:600;font-size:' + (isCmpct ? '13px' : '12px') + ';letter-spacing:-0.01em;color:' + T.textPrimary + ';line-height:1.3;';
     title.textContent = card.title;
     contentBottom.appendChild(title);
 
+    // Subtitle — yeni alan
+    if (card.subtitle) {
+      const sub = document.createElement('p');
+      sub.style.cssText = 'font-size:' + (isCmpct ? '11px' : '10px') + ';color:' + T.textMuted + ';line-height:1.3;margin-top:-2px;';
+      sub.textContent = card.subtitle;
+      contentBottom.appendChild(sub);
+    }
+
     const desc = document.createElement('p');
-    desc.style.cssText = 'font-size:' + (st.isMobile ? '12px' : '11px') + ';color:' + T.textPrimary + ';line-height:1.6;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;';
+    desc.style.cssText = 'font-size:' + (isCmpct ? '12px' : '11px') + ';color:' + T.textPrimary + ';line-height:1.6;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;';
     desc.textContent = card.description;
     contentBottom.appendChild(desc);
 
@@ -385,9 +421,11 @@ export function _buildHeartBtn(liked, likeKey, onImg) {
 export function _buildCtaBtn(card) {
   const T  = this._T();
   const st = this._st;
+  // isMobile || isPinnedRight — pinned carousel CTA font boyutu da kompakt olmalı
+  const isCtaCmpct = st.isMobile || st.isPinnedRight;
   const btn = document.createElement('button');
   btn.className = 'jw-btn';
-  btn.style.cssText = 'display:inline-flex;align-items:center;gap:4px;font-size:' + (st.isMobile ? '11px' : '10px') + ';font-weight:600;letter-spacing:0.03em;padding:4px 8px;border-radius:3px;border:1px solid ' + (st.isDark ? '#2a4a5e' : '#d1d5db') + ';color:' + (st.isDark ? '#6fa8bf' : '#555') + ';background:transparent;font-family:inherit;transition:all 0.15s;cursor:pointer;';
+  btn.style.cssText = 'display:inline-flex;align-items:center;gap:4px;font-size:' + (isCtaCmpct ? '11px' : '10px') + ';font-weight:600;letter-spacing:0.03em;padding:4px 8px;border-radius:3px;border:1px solid ' + (st.isDark ? '#2a4a5e' : '#d1d5db') + ';color:' + (st.isDark ? '#6fa8bf' : '#555') + ';background:transparent;font-family:inherit;transition:all 0.15s;cursor:pointer;';
   btn.innerHTML = esc(card.cta || 'İncele') + ICO.ArrowUpRight(9);
   btn.addEventListener('mouseenter', () => {
     const TT = this._T();
@@ -395,16 +433,19 @@ export function _buildCtaBtn(card) {
     btn.style.background  = TT.accentColor;
     btn.style.color = 'white';
   });
+  // Live this._st.isDark — stale closure önlendi
   btn.addEventListener('mouseleave', () => {
-    btn.style.borderColor = st.isDark ? '#2a4a5e' : '#d1d5db';
+    const isDk = this._st.isDark;
+    btn.style.borderColor = isDk ? '#2a4a5e' : '#d1d5db';
     btn.style.background  = 'transparent';
-    btn.style.color = st.isDark ? '#6fa8bf' : '#555';
+    btn.style.color = isDk ? '#6fa8bf' : '#555';
   });
   btn.addEventListener('click', () => {
     if (card.productId) {
       this.dispatchEvent(new CustomEvent('jules:productclick', { detail: { productId: card.productId, card } }));
     }
-    if (card.url) {
+    // isSafeUrl — javascript: şemasını engeller
+    if (card.url && isSafeUrl(card.url)) {
       window.open(card.url, '_blank', 'noopener noreferrer');
     }
   });
@@ -435,24 +476,29 @@ export function _buildFavDrawer() {
 
   let dragStartY = 0;
   handle.addEventListener('touchstart', e => { dragStartY = e.touches[0].clientY; st.drawerDragY = 0; }, { passive: true });
+  // passive:false + preventDefault — drawer sürüklerken sayfa scroll'unu engeller
   handle.addEventListener('touchmove', e => {
     const dy = e.touches[0].clientY - dragStartY;
-    if (dy > 0) { st.drawerDragY = dy; drawer.style.transform = 'translateY(' + dy + 'px)'; }
-  }, { passive: true });
+    if (dy > 0) { e.preventDefault(); st.drawerDragY = dy; drawer.style.transform = 'translateY(' + dy + 'px)'; }
+  }, { passive: false });
   handle.addEventListener('touchend', () => {
     if (st.drawerDragY > 80) { this._hideFavDrawer(); }
     else { st.drawerDragY = 0; drawer.style.transform = 'translateY(0)'; }
   });
   drawer.appendChild(handle);
 
-  // Drawer header
+  // Drawer header — data-fav-header attribute ile güvenli incremental sorgu
   const dHeader = document.createElement('div');
+  dHeader.dataset.favHeader = '1';
   dHeader.style.cssText = 'padding:10px 16px 12px;border-bottom:1px solid ' + T.border + ';display:flex;align-items:center;justify-content:space-between;flex-shrink:0;';
   dHeader.innerHTML = '<div style="display:flex;align-items:center;gap:8px;"><span style="display:inline-flex;color:#f87171;">' + ICO.Heart(14) + '</span><span style="font-size:14px;font-weight:600;color:' + T.textPrimary + ';">Favorilerim</span>' +
-    (allFavs.length > 0 ? '<span style="font-size:10px;font-weight:600;color:#f87171;background:' + (st.isDark ? 'rgba(248,113,113,0.12)' : '#fff5f5') + ';border:1px solid #fca5a5;border-radius:20px;padding:1px 7px;">' + allFavs.length + '</span>' : '') + '</div>';
+    // data-fav-badge — _patchFavDrawer'da güvenli sorgu için; başlangıçta gizli de olsa her zaman render edilir
+    '<span data-fav-badge="1" style="font-size:10px;font-weight:600;color:#f87171;background:' + (st.isDark ? 'rgba(248,113,113,0.12)' : '#fff5f5') + ';border:1px solid #fca5a5;border-radius:20px;padding:1px 7px;' + (allFavs.length === 0 ? 'display:none;' : '') + '">' + allFavs.length + '</span>' +
+    '</div>';
 
   const closeDrawer = document.createElement('button');
   closeDrawer.className = 'jw-btn';
+  closeDrawer.setAttribute('aria-label', 'Favorileri kapat');
   closeDrawer.innerHTML = ICO.PhosphorX(16);
   closeDrawer.style.cssText = 'color:' + T.textMuted + ';background:' + (st.isDark ? '#1a3247' : '#f3f4f6') + ';border-radius:8px;padding:5px;';
   closeDrawer.addEventListener('click', () => { this._hideFavDrawer(); });
@@ -465,10 +511,10 @@ export function _buildFavDrawer() {
   dContent.style.cssText = 'flex:1;min-height:0;';
 
   if (allFavs.length === 0) {
-    dContent.innerHTML = '<div style="padding:40px 24px;text-align:center;"><span style="color:' + T.border + ';display:inline-flex;margin-bottom:12px;">' + ICO.Heart(32) + '</span><p style="font-size:14px;color:' + T.textMuted + ';margin-bottom:6px;">Henüz favori eklemediniz</p><p style="font-size:12px;color:' + (st.isDark ? '#2a4a5e' : '#d1d5db') + ';">Kartların üzerindeki ♥ ikonuna dokunun</p></div>';
+    dContent.appendChild(this._buildEmptyFavsWrap());
   } else {
     const grid = document.createElement('div');
-    grid.style.cssText = 'padding:12px 14px 20px;display:grid;grid-template-columns:repeat(2,1fr);gap:10px;';
+    grid.style.cssText = 'padding:12px 14px 20px;display:grid;grid-template-columns:repeat(2,1fr);column-gap:10px;row-gap:21px;';
     allFavs.forEach(({ card, sessionId }) => {
       grid.appendChild(this._buildCardView(card, sessionId, true));
     });

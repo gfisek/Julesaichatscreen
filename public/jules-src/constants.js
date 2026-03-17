@@ -5,12 +5,12 @@
 export const EMOJIS = ['👋🏼', '🖖🏼', 'BOT_ICON', '👇🏼', '👍🏼', '🙏🏼', '🤝🏼', '👏🏼'];
 
 export const TW_PHRASES = [
-  'Merhaba, size nasıl yardımcı olabilirim?',
-  'Seyahat planı yap...',
-  'Fiyat karşılaştır...',
-  'Hafta sonu nereye gideyim?',
-  'Trend ürünleri göster...',
-  'Yakınımdaki kafeler...',
+  'iPhone 16 Pro karşılaştır...',
+  'MacBook Air mı, Pro mu?',
+  'En iyi AirPods hangisi?',
+  'Mac mini vs iMac...',
+  'Apple Watch Series 10...',
+  'Bütçeme uygun Apple ürünü...',
 ];
 
 export const DEFAULT_CONFIG = {
@@ -28,17 +28,50 @@ export const DEFAULT_CONFIG = {
   },
   font: { family: 'inherit' },
   suggestions: [
-    'İstanbul\'da otel öner',
-    'Bütçeme uygun seçenekler',
-    'En iyi restoranlar',
-    'Çok satan ürünler',
+    'iPhone 16 serisi',
+    'Mac modelleri',
+    'AirPods & aksesuarlar',
+    'En çok satanlar',
   ],
   defaultReplies: [
-    'Anlıyorum! Size daha iyi yardımcı olabilmem için biraz daha bilgi verir misiniz?',
-    'Harika bir soru! Bu konuda size yardımcı olmak için birkaç seçenek hazırlıyorum...',
-    'Tabii ki! En güncel bilgileri getiriyorum, bir an lütfen.',
-    'Mükemmel! Sizin için en uygun seçenekleri analiz ediyorum.',
+    'Elbette! Apple ürünleri hakkında her konuda size yardımcı olmaya hazırım. Hangi ürün veya özellik ilginizi çekiyor?',
+    'Harika bir soru! Apple ekosistemi hakkında size en doğru ve güncel bilgileri getiriyorum, bir an lütfen.',
+    'Tabii ki! iPhone\'dan Mac\'e, AirPods\'tan Apple Watch\'a — tüm konularda yardım etmek için buradayım.',
+    'Mükemmel! Size en uygun Apple ürününü bulmak için hemen inceliyorum. Kullanım alışkanlıklarınızı anlatır mısınız?',
   ],
 };
 
 export const DEFAULT_CARDS = { datasets: {}, scenarios: [] };
+
+/**
+ * FORM_CONFIG — Her form tipi için başlık, alanlar ve bot yanıtı.
+ * Yeni form tipi eklenince yalnızca bu dosya güncellenir.
+ * handlers.js ve render-form.js bu yapıyı referans alır.
+ */
+export const FORM_CONFIG = {
+  anaform: {
+    title:  'İLETİŞİM FORMU',
+    fields: ['adSoyad', 'eposta', 'telefon', 'mesaj'],
+    reply:  'Sizi daha iyi tanıyabilmek için bilgilerinizi paylaşır mısınız?',
+  },
+  adsoyad: {
+    title:  'KİMLİK BİLGİSİ',
+    fields: ['adSoyad'],
+    reply:  'Adınızı ve soyadınızı öğrenebilir miyim?',
+  },
+  eposta: {
+    title:  'E-POSTA',
+    fields: ['eposta'],
+    reply:  'E-posta adresinizi alabilir miyim?',
+  },
+};
+
+/**
+ * FIELD_META — Alan tanımları.
+ */
+export const FIELD_META = {
+  adSoyad: { label: 'AD SOYAD', type: 'text',  placeholder: 'Adınız Soyadınız',   required: true,  autocomplete: 'name'  },
+  eposta:  { label: 'E-POSTA',  type: 'email', placeholder: 'ornek@mail.com',      required: true,  autocomplete: 'email' },
+  telefon: { label: 'TELEFON',  type: 'tel',   placeholder: '05XX XXX XX XX',      required: false, autocomplete: 'tel'   },
+  mesaj:   { label: 'MESAJ',    type: 'area',  placeholder: 'Mesajınızı yazın...', required: true,  autocomplete: 'off'   },
+};

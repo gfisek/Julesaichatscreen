@@ -37,7 +37,11 @@ export function heartHtml(size, isLiked, isHovered, onImg) {
 }
 
 // ── ID & Zaman ──────────────────────────────────────────────────────────────────
+// crypto.randomUUID() ile güçlendirilmiş ID üretimi; fallback Date.now() ile
 export function genId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return 'msg-' + crypto.randomUUID();
+  }
   return 'msg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
 }
 
@@ -49,52 +53,82 @@ export function formatTime(date) {
 export function esc(s) {
   return String(s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // ── Tarih ───────────────────────────────────────────────────────────────────────
-const MONTHS = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
-const DAYS   = ['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
-
 export function getDateStr() {
-  const n = new Date();
-  return n.getDate() + ' ' + MONTHS[n.getMonth()] + ' ' + DAYS[n.getDay()] + '.';
+  return new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
-// ── Hava Durumu ─────────────────────────────────────────────────────────────────
-export function getSunLabel(wi) {
-  if (!wi) return null;
-  const now = new Date();
-  const sr  = wi.sunrise.split(':').map(Number);
-  const ss  = wi.sunset.split(':').map(Number);
-  const nm  = now.getHours() * 60 + now.getMinutes();
-  const srm = sr[0] * 60 + sr[1];
-  const ssm = ss[0] * 60 + ss[1];
-  if (nm < srm) return { label: wi.sunrise, isSunrise: true };
-  if (nm < ssm) return { label: wi.sunset,  isSunrise: false };
-  return { label: wi.sunrise, isSunrise: true };
+// ── Body scroll lock (referans sayaçlı) ─────────────────────────────────────────
+let _lockCount = 0;
+let _savedOverflow = '';
+
+export function lockBodyScroll() {
+  _lockCount++;
+  if (_lockCount === 1) {
+    _savedOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+  }
 }
 
-export function weatherIconHtml(code, color, size) {
-  const st = 'style="color:' + color + ';flex-shrink:0;display:inline-flex;"';
-  let ico;
-  if      (code === 0)                                ico = ICO.Sun(size);
-  else if (code === 1)                                ico = ICO.SunDim(size);
-  else if (code <= 3)                                 ico = ICO.CloudSun(size);
-  else if (code <= 48)                                ico = ICO.CloudFog(size);
-  else if (code <= 67)                                ico = ICO.CloudRain(size);
-  else if ([71,73,75,85,86].indexOf(code) !== -1)     ico = ICO.Snowflake(size);
-  else if (code === 77)                               ico = ICO.CloudSnow(size);
-  else if (code <= 82)                                ico = ICO.CloudRain(size);
-  else                                                ico = ICO.CloudLightning(size);
-  return '<span ' + st + '>' + ico + '</span>';
+export function unlockBodyScroll() {
+  if (_lockCount > 0) _lockCount--;
+  if (_lockCount === 0) {
+    document.body.style.overflow = _savedOverflow;
+  }
 }
 
-// ── @property kaydı (Shadow DOM dışında, global scope) ─────────────────────────
+export function forceUnlockBodyScroll() {
+  _lockCount = 0;
+  document.body.style.overflow = _savedOverflow;
+}
+
+// ── Orbit property ───────────────────────────────────────────────────────────────
 export function registerOrbitProperty() {
-  if (document.getElementById('jw-orbit-prop')) return;
-  const st = document.createElement('style');
-  st.id = 'jw-orbit-prop';
-  st.textContent = '@property --jw-orbit-angle { syntax: "<angle>"; initial-value: 0deg; inherits: false; }';
-  document.head.appendChild(st);
+  if (typeof CSS !== 'undefined' && CSS.registerProperty) {
+    try {
+      CSS.registerProperty({ name: '--jw-orbit-angle', syntax: '<angle>', inherits: false, initialValue: '0deg' });
+    } catch (_) { /* zaten kayıtlı */ }
+  }
+}
+
+// ── Hava durumu ─────────────────────────────────────────────────────────────────
+export function weatherIconHtml(code, color, size) {
+  const ico = ICO.weatherIcon(code, size);
+  return '<span style="color:' + color + ';display:inline-flex;">' + ico + '</span>';
+}
+
+export function getSunLabel(wi) {
+  if (!wi || !wi.sunrise || !wi.sunset) return null;
+  const now       = new Date();
+  const nowMins   = now.getHours() * 60 + now.getMinutes();
+  const parse     = s => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
+  const riseMins  = parse(wi.sunrise);
+  const setMins   = parse(wi.sunset);
+
+  if (nowMins < riseMins) return { label: 'Gün doğumu ' + wi.sunrise };
+  if (nowMins < setMins)  return { label: 'Gün batımı ' + wi.sunset  };
+  return null;
+}
+
+// ── URL Güvenlik Doğrulayıcı ────────────────────────────────────────────────────
+/**
+ * isSafeUrl — Yalnızca http/https/göreli URL'lere izin verir.
+ * javascript:, data:, vburl protokollerini reddeder.
+ * card.url, card.image ve branding.poweredByUrl için kullanılır.
+ */
+export function isSafeUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  const t = url.trim().toLowerCase();
+  return (
+    t.startsWith('https://') ||
+    t.startsWith('http://')  ||
+    t.startsWith('/')        ||
+    t.startsWith('./')       ||
+    t.startsWith('../')      ||
+    t.startsWith('#')
+  );
 }

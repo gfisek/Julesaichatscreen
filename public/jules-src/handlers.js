@@ -2,53 +2,82 @@
  * handlers.js — Kullanıcı etkileşim handler'ları
  * _handleSend · _handleShowCards · _handleClosePanel · _handleTogglePanel
  * _handleTogglePinned · _handleLike · _handleVote · _handleCopy
+ * _handleFormSubmit · _handleKvkkAccept
  *
- * Optimized: _build() yerine incremental DOM update metodları kullanılır.
+ * Incremental DOM update metodları (_patchMessages vb.) _build() yerine kullanılır.
  */
 import { ICO }                   from './icons.js';
 import { genId, heartHtml }      from './utils.js';
-import { DEFAULT_CONFIG }        from './constants.js';
+import { DEFAULT_CONFIG,
+         FORM_CONFIG }           from './constants.js';
+
+// FORM_TRIGGERS → FORM_CONFIG'den türetilir; yeni form tipi eklenince sadece constants.js güncellenir.
+const FORM_TRIGGERS = Object.fromEntries(
+  Object.entries(FORM_CONFIG).map(([key, cfg]) => [key, { formType: key, reply: cfg.reply }])
+);
 
 export function _handleSend(text) {
   if (!text || !text.trim()) return;
+  // Bot cevaplarken yeni mesaj göndermeyi engelle
+  if (this._st.isTyping) return;
   text = text.trim();
-  this._st.inputValue = '';
 
+  this._st.inputValue = '';
   if (this._st.isMobile) {
-    const ta = this._shadow && this._shadow.querySelector('textarea');
+    // .jw-ta — form textarea'larıyla (.jw-field-area) çakışmayı önler
+    const ta = this._shadow && this._shadow.querySelector('.jw-ta');
     if (ta) ta.blur();
   }
 
   const userMsg = { id: genId(), role: 'user', content: text, timestamp: new Date() };
   this._st.messages.push(userMsg);
   this._st.isTyping = true;
-  this._patchMessages();   // ← incremental: sadece yeni mesaj + typing eklenir
+  this._patchMessages();
 
-  const lower    = text.toLowerCase();
+  // Turkish locale — İ→i, Ş→ş vb. doğru dönüşür
+  const lower    = text.toLocaleLowerCase('tr-TR').trim();
+
+  // Form tetikleyici kontrolü
+  const formTrigger = FORM_TRIGGERS[lower] || null;
+
   const scenarios = this._cards.scenarios || [];
   const datasets  = this._cards.datasets  || {};
-  const scenario  = scenarios.find(s => s.keywords && s.keywords.some(kw => lower.includes(kw)));
+  const scenario  = !formTrigger
+    ? scenarios.find(s => s.keywords && s.keywords.some(kw => lower.includes(kw)))
+    : null;
   const cards     = scenario ? datasets[scenario.dataset] : undefined;
   const replies   = this._config.defaultReplies || DEFAULT_CONFIG.defaultReplies;
   const delay     = 1200 + Math.random() * 800;
 
   clearTimeout(this._timers.reply);
   this._timers.reply = setTimeout(() => {
+    // stale refs guard — _build() araya girmişse _patchMessages güvenli çalışır
+    if (!this._refs.msgs || !this._refs.msgs.isConnected) {
+      this._st.isTyping = false;
+      this._build();
+      return;
+    }
+
     this._st.isTyping = false;
     const botId  = genId();
     const botMsg = {
-      id: botId, role: 'assistant',
-      content:   scenario ? scenario.reply : replies[this._st.defaultReplyIndex++ % replies.length],
+      id:        botId,
+      role:      'assistant',
+      content:   formTrigger
+        ? formTrigger.reply
+        : (scenario ? scenario.reply : replies[this._st.defaultReplyIndex++ % replies.length]),
       timestamp: new Date(),
       hasCards:  !!cards,
       cardLabel: scenario ? scenario.cardLabel : undefined,
+      formType:  formTrigger ? formTrigger.formType : undefined,
     };
     this._st.messages.push(botMsg);
 
     if (cards && scenario) {
       this._st.cardData[botId] = { cards, title: scenario.panelTitle };
-      this._patchMessages();   // ← bot mesajını göster (typing kaldırılır)
-      setTimeout(() => {
+      this._patchMessages();
+      // this._timers'a kayıt — disconnect sırasında state mutasyonunu önler
+      this._timers.cardOpen = setTimeout(() => {
         this._st.activeCardMsgId = botId;
         const exists = this._st.panelSessions.find(s => s.id === botId);
         if (!exists) {
@@ -56,12 +85,11 @@ export function _handleSend(text) {
         }
         if (!this._st.isMobile && !this._st.isPinnedRight) {
           this._st.isPanelOpen = true;
-          this._openContentPanel();   // ← panel ekle, header/toggle güncelle
+          this._openContentPanel();
         }
-        this._patchPanelToggle();
       }, 300);
     } else {
-      this._patchMessages();   // ← bot mesajını göster (typing kaldırılır)
+      this._patchMessages();
     }
   }, delay);
 }
@@ -76,26 +104,26 @@ export function _handleShowCards(msgId) {
       this._st.panelSessions.push({ id: msgId, ...data, timestamp: new Date() });
     }
   }
-  this._openContentPanel();   // ← incremental panel aç
+  this._openContentPanel();
 }
 
 export function _handleClosePanel() {
   this._st.activeCardMsgId = null;
   this._st.isPanelOpen = false;
-  this._closeContentPanel();   // ← incremental panel kapat
+  this._closeContentPanel();
 }
 
 export function _handleTogglePanel() {
   if (this._st.isPanelOpen) {
     this._st.isPanelOpen = false;
     this._st.activeCardMsgId = null;
-    this._closeContentPanel();   // ← incremental panel kapat
+    this._closeContentPanel();
   } else if (this._st.panelSessions.length > 0) {
     this._st.isPanelOpen = true;
     if (!this._st.activeCardMsgId && this._st.panelSessions.length > 0) {
       this._st.activeCardMsgId = this._st.panelSessions[this._st.panelSessions.length - 1].id;
     }
-    this._openContentPanel();   // ← incremental panel aç
+    this._openContentPanel();
   }
 }
 
@@ -104,15 +132,21 @@ export function _handleTogglePinned() {
   if (this._st.isPinnedRight) {
     this._st.isPanelOpen = false;
     this._st.activeCardMsgId = null;
+  } else if (this._st.panelSessions.length > 0) {
+    // Unpin: önceki oturumlar varsa paneli ve en son aktif oturumu restore et
+    this._st.isPanelOpen = true;
+    if (!this._st.activeCardMsgId) {
+      this._st.activeCardMsgId = this._st.panelSessions[this._st.panelSessions.length - 1].id;
+    }
   }
-  this._build();   // Layout değişikliği — full rebuild gerekli
+  this._build();
 }
 
 export function _handleLike(likeKey) {
   if (this._st.likedCards.has(likeKey)) this._st.likedCards.delete(likeKey);
   else this._st.likedCards.add(likeKey);
   const liked = this._st.likedCards.has(likeKey);
-  this._favCountCache = undefined; // _getFavCount() önbelleğini geçersiz kıl
+  this._favCountCache = undefined;
   this.dispatchEvent(new CustomEvent('jules:likechange', { detail: { likeKey, liked } }));
 
   // Hedefli DOM güncellemesi — kalp butonlarını güncelle
@@ -127,16 +161,13 @@ export function _handleLike(likeKey) {
     this._refreshContentPanelBody();
   }
   if (this._st.showFavDrawer) {
-    const oldBackdrop = this._shadow.getElementById('jw-fav-backdrop');
-    if (oldBackdrop) oldBackdrop.remove();
-    this._shadow.appendChild(this._buildFavDrawer());
+    this._patchFavDrawer(likeKey, liked);
   }
 
   // Her durumda fav sayacı butonlarını güncelle
   const favCount = this._getFavCount();
   const T = this._T();
 
-  // Compact header fav butonu
   const compactFavBtn = this._shadow.querySelector('[data-compact-fav-btn]');
   if (compactFavBtn) {
     compactFavBtn.style.color = favCount > 0 ? '#f87171' : T.textMuted;
@@ -144,7 +175,6 @@ export function _handleLike(likeKey) {
       (favCount > 0 ? '<span style="position:absolute;top:1px;right:1px;width:14px;height:14px;border-radius:50%;background:#f87171;color:#fff;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;">' + favCount + '</span>' : '');
   }
 
-  // CP header fav butonu
   const cpFavBtn = this._shadow.querySelector('[data-cp-fav-btn]');
   if (cpFavBtn) {
     const isActive = this._st.showFavoritesInPanel;
@@ -199,4 +229,33 @@ export function _handleCopy(msgId, text) {
     const b = this._shadow.querySelector('[data-copy-id="' + msgId + '"]');
     if (b) { b.innerHTML = ICO.Copy(11); b.style.color = this._T().textMuted; }
   }, 1800);
+}
+
+// ── Form Submit ─────────────────────────────────────────────────────────────────
+/**
+ * Form verisi gönderildiğinde çağrılır.
+ * Backend entegrasyon noktası: 'jules:formsubmit' eventi dispatch edilir.
+ * Dışarıdan dinlemek için:
+ *   widget.addEventListener('jules:formsubmit', e => fetch('/api/form', { body: JSON.stringify(e.detail) }));
+ */
+export function _handleFormSubmit(msgId, formType, data) {
+  this._st.submittedForms[msgId] = data;
+  if (data.kvkkAccepted) this._st.kvkkAccepted = true;
+
+  this._patchFormMessage(msgId);
+
+  this.dispatchEvent(new CustomEvent('jules:formsubmit', {
+    detail: { formType, msgId, submittedAt: new Date().toISOString(), data },
+    bubbles:  true,
+    composed: true,
+  }));
+}
+
+// ── KVKK Kabul ─────────────────────────────────────────────────────────────────
+/**
+ * KVKK checkbox işaretlendiğinde çağrılır.
+ * Session boyunca true kalır; sonraki formlarda KVKK satırı gizlenir.
+ */
+export function _handleKvkkAccept() {
+  this._st.kvkkAccepted = true;
 }

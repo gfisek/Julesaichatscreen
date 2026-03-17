@@ -22,16 +22,16 @@
   },
 
   "suggestions": [
-    "İstanbul'da otel öner",
-    "Bütçeme uygun seçenekler",
-    "En iyi restoranlar",
-    "Çok satan ürünler"
+    "iPhone 16 serisi",
+    "Mac modelleri",
+    "AirPods & aksesuarlar",
+    "En çok satanlar"
   ],
 
   "defaultReplies": [
-    "Anlıyorum! Size daha iyi yardımcı olabilmem için biraz daha bilgi verir misiniz? Örneğin bütçeniz veya tercih ettiğiniz konum nedir?",
-    "Harika bir soru! Bu konuda size yardımcı olmak için birkaç seçenek hazırlıyorum...",
-    "Tabii ki! Bu konuda en güncel ve güvenilir bilgileri getiriyorum, bir an lütfen.",
-    "Mükemmel! Sizin için en uygun seçenekleri analiz ediyorum. Tercihlerinizi öğrenmek ister misiniz?"
+    "Elbette! Apple ürünleri hakkında her konuda size yardımcı olmaya hazırım. Hangi ürün veya özellik ilginizi çekiyor?",
+    "Harika bir soru! Apple ekosistemi hakkında size en doğru ve güncel bilgileri getiriyorum, bir an lütfen.",
+    "Tabii ki! iPhone'dan Mac'e, AirPods'tan Apple Watch'a — tüm konularda yardım etmek için buradayım.",
+    "Mükemmel! Size en uygun Apple ürününü bulmak için hemen inceliyorum. Kullanım alışkanlıklarınızı anlatır mısınız?"
   ]
 }

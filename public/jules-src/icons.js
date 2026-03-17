@@ -34,6 +34,7 @@ export const ICO = {
   ChevronRight: (s) => _lsvg('<path d="m9 18 6-6-6-6"/>', s),
   ChevronLeft:  (s) => _lsvg('<path d="m15 18-6-6 6-6"/>', s),
   ChevronDown:  (s) => _lsvg('<path d="m6 9 6 6 6-6"/>', s),
+  ChevronUp:    (s) => _lsvg('<path d="m18 15-6-6-6 6"/>', s),
 
   Heart: (s, filled) =>
     _lsvg('<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"' + (filled ? ' fill="currentColor"' : '') + '/>', s),
@@ -47,9 +48,14 @@ export const ICO = {
   Mic: (s) =>
     _lsvg('<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/>', s),
 
+  Volume2: (s) =>
+    _lsvg('<path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>', s),
+
   ArrowUpRight: (s) => _lsvg('<path d="M7 7h10v10"/><path d="M7 17 17 7"/>', s),
 
   Clock: (s) => _lsvg('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>', s),
+
+  Info: (s) => _lsvg('<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>', s),
 
   // ── Phosphor ─────────────────────────────────────────────────────────────────
   ArrowUp: (s) =>

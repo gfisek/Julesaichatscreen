@@ -38,9 +38,17 @@ export const CSS_VARS = `
     --jw-arrow-bg:         rgba(255,255,255,0.95);
     --jw-arrow-border:     rgba(0,0,0,0.1);
     --jw-msg-shadow-alpha: 0.10;
+    /* ── Audit4 #14 (P3): Bot mesaj text rengi ── */
+    --jw-bot-text:         #1f2937;
     /* ── MiniJules ── */
     --jw-mini-bg:          #f8f9f7;
     --jw-mini-inner-bg:    #ffffff;
+    /* ── Form ── */
+    --jw-form-bg:          #e8f3f8;
+    --jw-form-section-bg:  #f4f9fc;
+    --jw-form-input-bg:    #ffffff;
+    --jw-form-border:      #b8d0de;
+    --jw-form-label:       #6b8fa0;
   }
   :host([data-dark]) {
     --jw-bg:               rgba(10,23,32,0.97);
@@ -65,9 +73,17 @@ export const CSS_VARS = `
     --jw-arrow-bg:         rgba(30,58,85,0.9);
     --jw-arrow-border:     rgba(77,196,206,0.3);
     --jw-msg-shadow-alpha: 0.35;
+    /* ── Audit4 #14 (P3): Bot mesaj text rengi ── */
+    --jw-bot-text:         #cfe8f4;
     /* ── MiniJules ── */
     --jw-mini-bg:          #0c1c28;
     --jw-mini-inner-bg:    #132230;
+    /* ── Form ── */
+    --jw-form-bg:          #0d2235;
+    --jw-form-section-bg:  #071722;
+    --jw-form-input-bg:    #132d42;
+    --jw-form-border:      #1e4360;
+    --jw-form-label:       #5a90aa;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
 `;
@@ -95,9 +111,9 @@ export const CSS_ANIMATIONS = `
     to   { opacity:1; transform:translateY(0); }
   }
   @keyframes jw-mic-ring {
-    0%   { box-shadow: 0 0 0 0   rgba(239,68,68,0.55); }
-    70%  { box-shadow: 0 0 0 7px rgba(239,68,68,0);    }
-    100% { box-shadow: 0 0 0 0   rgba(239,68,68,0);    }
+    0%   { box-shadow: 0 0 0 1.5px rgba(239,68,68,0.85); }
+    55%  { box-shadow: 0 0 0 1.5px rgba(239,68,68,0.12); }
+    100% { box-shadow: 0 0 0 1.5px rgba(239,68,68,0.85); }
   }
   @keyframes jw-toast-in {
     from { opacity:0; transform:translateX(-50%) translateY(6px); }
@@ -106,6 +122,11 @@ export const CSS_ANIMATIONS = `
   @keyframes jw-mini-appear {
     from { opacity:0; transform:translateY(-14px) scale(0.98); }
     to   { opacity:1; transform:translateY(0)     scale(1); }
+  }
+  @keyframes jw-mini-first-open {
+    0%   { opacity:0; transform:translateY(-100vh); }
+    20%  { opacity:1;                               }
+    100% { opacity:1; transform:translateY(0);      }
   }
   @keyframes jw-orbit-glow {
     0%   { filter: brightness(1) saturate(1) blur(0px);   transform: scale(1); }
@@ -149,8 +170,14 @@ export const CSS_ANIMATIONS = `
   }
   .jw-mic-listening {
     animation: jw-mic-ring 1.1s ease-out infinite;
-    color: #ef4444 !important;
     background: rgba(239,68,68,0.10) !important;
+  }
+  @keyframes jw-mic-recording-blink {
+    0%,  49% { opacity: 1; }
+    50%, 100% { opacity: 0.18; }
+  }
+  .jw-mic-active-icon {
+    animation: jw-mic-recording-blink 0.9s step-end infinite;
   }
   .jw-bounce-1 { animation: jw-bounce 1s infinite 0ms; }
   .jw-bounce-2 { animation: jw-bounce 1s infinite 150ms; }
@@ -158,14 +185,40 @@ export const CSS_ANIMATIONS = `
   .jw-msg-in    { animation: jw-fadein 0.22s ease forwards; }
   .jw-slide-in  { animation: jw-slide-in 0.3s cubic-bezier(0.4,0,0.2,1) forwards; }
   .jw-draw-in   { animation: jw-draw-in 0.35s cubic-bezier(0.32,0.72,0,1) forwards; }
+  @keyframes jw-eq-bar {
+    0%, 100% { height: 3px; }
+    50%       { height: 12px; }
+  }
 `;
 
 // ── 3. Utilities ───────────────────────────────────────────────────────────────
 export const CSS_UTILS = `
-  .jw-scroll::-webkit-scrollbar { display: none; }
-  .jw-scroll { -ms-overflow-style: none; scrollbar-width: none; overflow-y: auto; overscroll-behavior-y: contain; }
+  /* ── Scrollbar: ince, çerçevesiz, scroll sırasında fade-in/out ── */
+  /* Tüm shadow DOM içi 3px, track yok, thumb şeffaf */
+  :host *::-webkit-scrollbar { width: 3px; height: 3px; }
+  :host *::-webkit-scrollbar-track { background: transparent; border: none; box-shadow: none; }
+  :host *::-webkit-scrollbar-corner { background: transparent; }
+  :host *::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 3px;
+    border: none;
+    transition: background 0.65s ease; /* fade-out: yavaş */
+  }
+  /* Scroll aktifken: thumb görünür, geçiş hızlı */
+  .jw-scrolling::-webkit-scrollbar-thumb {
+    background: #D1D5DB;
+    transition: background 0.15s ease; /* fade-in: hızlı */
+  }
+  /* Firefox */
+  :host * { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+  .jw-scrolling { scrollbar-color: #D1D5DB transparent; }
+
+  /* Yatay scroll (chip bar) — gizli kalır */
   .jw-scroll-x::-webkit-scrollbar { display: none; }
   .jw-scroll-x { -ms-overflow-style: none; scrollbar-width: none; overflow-x: auto; overscroll-behavior-x: contain; }
+
+  /* Dikey scroll kapsayıcılar — sadece overflow, scrollbar CSS global'den gelir */
+  .jw-scroll { overflow-y: auto; overscroll-behavior-y: contain; }
 
   .jw-card-img { transition: transform 0.7s ease; }
   .jw-card-wrap:hover .jw-card-img { transform: scale(1.04); }
@@ -184,7 +237,7 @@ export const CSS_LAYOUT = `
   }
   #jw-overlay.jw-active { pointer-events: auto; }
   #jw-overlay.jw-open   { background: rgba(0,0,0,0.38); backdrop-filter: blur(2px); }
-  #jw-overlay.jw-pinned { background: transparent; backdrop-filter: none; }
+  #jw-overlay.jw-pinned { background: transparent; backdrop-filter: none; pointer-events: none; }
 
   #jw-box {
     display: flex;
@@ -363,6 +416,16 @@ export const CSS_MINI = `
     background: transparent;
     animation: jw-mini-appear 380ms cubic-bezier(0.34,1.2,0.64,1) forwards;
   }
+  /* ── İlk açılış: tam ekrandan iniş ── */
+  #jw-mini.jw-mini-first-open {
+    animation: jw-mini-first-open 750ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  #jw-mini.jw-mini-center.jw-mini-first-open {
+    transform-origin: top center;
+  }
+  #jw-mini.jw-mini-right.jw-mini-first-open {
+    transform-origin: top right;
+  }
   #jw-mini.jw-mini-center {
     top: 0; left: 0; right: 0;
     display: flex;
@@ -423,6 +486,8 @@ export const CSS_MINI = `
     font-size: 13px; color: var(--jw-text-primary);
     line-height: 1.4; overflow: hidden;
     padding: 0; cursor: pointer; caret-color: transparent;
+    user-select: none; -webkit-user-select: none;
+    touch-action: manipulation;
   }
   textarea.jw-mini-ta::placeholder { color: var(--jw-placeholder); }
   :host([data-dark]) textarea.jw-mini-ta::placeholder { color: #9bcfdf; }
@@ -462,6 +527,216 @@ export const CSS_MINI = `
   .jw-mini-chevron:hover  { color: var(--jules-accent); opacity: 1; transform: translateY(3px); }
   .jw-mini-chevron:active { transform: translateY(5px); }
 `;
-// ── Birleştir ─────────────────────────────────────────────────────────────────
+
+// ── 8. Inline Forms (Braun-inspired) ─────────────────────────────────────────
+export const CSS_FORMS = `
+  /* ── Dış kap ── */
+  .jw-form {
+    margin: 10px 0 0 38px;
+    max-width: calc(100% - 38px);
+    border: 1.5px solid var(--jw-border);
+    border-radius: 5px;
+    background: var(--jw-form-bg);
+    overflow: hidden;
+    animation: jw-fadein 0.28s ease forwards;
+  }
+
+  /* ── Başlık çubuğu ── */
+  .jw-form-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 14px;
+    border-bottom: 1.5px solid var(--jw-form-border);
+    background: var(--jw-form-section-bg);
+  }
+  .jw-form-head-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--jw-accent-color);
+    flex-shrink: 0;
+  }
+  .jw-form-head-label {
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    color: var(--jw-form-label);
+  }
+
+  /* ── Gövde ── */
+  .jw-form-body {
+    padding: 13px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  /* ── 2 sütun grid (adSoyad + eposta yan yana) ── */
+  .jw-form-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  /* ── Alan grubu ── */
+  .jw-form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .jw-form-label {
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    color: var(--jw-form-label);
+  }
+  .jw-form-input,
+  .jw-form-textarea {
+    border: 1.5px solid var(--jw-form-border);
+    border-radius: 3px;
+    background: var(--jw-form-input-bg);
+    color: var(--jw-text-primary);
+    font-family: inherit;
+    font-size: 12px;
+    padding: 7px 9px;
+    outline: none;
+    transition: border-color 0.12s;
+    resize: none;
+    width: 100%;
+  }
+  .jw-form-input::placeholder,
+  .jw-form-textarea::placeholder {
+    color: var(--jw-placeholder);
+    font-size: 11px;
+  }
+  .jw-form-input:focus,
+  .jw-form-textarea:focus {
+    border-color: var(--jw-accent-color);
+  }
+  .jw-form-textarea {
+    min-height: 62px;
+    max-height: 100px;
+    overflow-y: auto;
+  }
+  .jw-form-input.jw-input-error,
+  .jw-form-textarea.jw-input-error {
+    border-color: #f87171 !important;
+  }
+  .jw-form-field-err {
+    font-size: 9px;
+    color: #f87171;
+    letter-spacing: 0.02em;
+    line-height: 1.4;
+  }
+
+  /* ── KVKK — tam genişlik, gövde padding'inden kaçarak kenarlara yaslanır ── */
+  .jw-kvkk {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 9px 14px;
+    border-top: 1.5px solid var(--jw-form-border);
+    background: var(--jw-form-section-bg);
+  }
+  .jw-kvkk-check {
+    width: 13px; height: 13px;
+    flex-shrink: 0; margin-top: 2px;
+    accent-color: var(--jw-accent-color);
+    cursor: pointer;
+  }
+  .jw-kvkk-text {
+    font-size: 10px;
+    color: var(--jw-text-muted);
+    line-height: 1.55;
+    cursor: default;
+  }
+  .jw-kvkk-link {
+    color: var(--jw-accent-color);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+
+  /* ── Alt çubuk (gönder) ── */
+  .jw-form-foot {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 9px 14px;
+    border-top: 1.5px solid var(--jw-form-border);
+    background: var(--jw-form-section-bg);
+    gap: 8px;
+  }
+  .jw-form-submit {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 15px;
+    border-radius: 3px;
+    background: var(--jules-primary);
+    color: white;
+    font-size: 8px;
+    font-weight: 800;
+    font-family: inherit;
+    letter-spacing: 0.16em;
+    cursor: pointer;
+    border: none;
+    transition: background 0.12s, transform 0.08s;
+  }
+  .jw-form-submit:hover:not(:disabled) { background: var(--jules-secondary); }
+  .jw-form-submit:active:not(:disabled) { transform: scale(0.97); }
+  .jw-form-submit:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* ── Başarı kartı ── */
+  .jw-form-success {
+    margin: 10px 0 0 38px;
+    max-width: calc(100% - 38px);
+    border: 1.5px solid rgba(22,163,74,0.28);
+    border-radius: 5px;
+    overflow: hidden;
+    animation: jw-fadein 0.28s ease forwards;
+  }
+  .jw-form-success-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 14px;
+    border-bottom: 1px solid rgba(22,163,74,0.18);
+    background: rgba(22,163,74,0.06);
+  }
+  .jw-form-success-body {
+    padding: 11px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: var(--jw-form-bg);
+  }
+  .jw-form-success-row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .jw-form-success-lbl {
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.13em;
+    color: var(--jw-text-muted);
+    min-width: 54px;
+    flex-shrink: 0;
+    padding-top: 2px;
+  }
+  .jw-form-success-val {
+    font-size: 11px;
+    color: var(--jw-text-primary);
+    overflow-wrap: break-word;
+    word-break: break-word;
+    line-height: 1.5;
+  }
+`;
+
 export const SHADOW_CSS =
-  CSS_VARS + CSS_ANIMATIONS + CSS_UTILS + CSS_LAYOUT + CSS_COMPONENTS + CSS_OVERLAYS + CSS_MINI;
+  CSS_VARS + CSS_ANIMATIONS + CSS_UTILS + CSS_LAYOUT + CSS_COMPONENTS + CSS_OVERLAYS + CSS_MINI + CSS_FORMS;
