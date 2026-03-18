@@ -7,7 +7,8 @@
  * Incremental DOM update metodları (_patchMessages vb.) _build() yerine kullanılır.
  */
 import { ICO }                   from './icons.js';
-import { genId, heartHtml }      from './utils.js';
+import { genId, heartHtml,
+         escSelector }      from './utils.js';
 import { DEFAULT_CONFIG,
          FORM_CONFIG }           from './constants.js';
 
@@ -150,7 +151,7 @@ export function _handleLike(likeKey) {
   this.dispatchEvent(new CustomEvent('jules:likechange', { detail: { likeKey, liked } }));
 
   // Hedefli DOM güncellemesi — kalp butonlarını güncelle
-  this._shadow.querySelectorAll('[data-like-key="' + likeKey + '"]').forEach(btn => {
+  this._shadow.querySelectorAll('[data-like-key="' + escSelector(likeKey) + '"]').forEach(btn => {
     const onImg = btn.dataset.onImg === '1';
     const hs    = onImg ? 16 : 14;
     btn.innerHTML = heartHtml(hs, liked, false, onImg);
@@ -192,13 +193,13 @@ export function _handleVote(msgId, vote) {
   this.dispatchEvent(new CustomEvent('jules:vote', { detail: { msgId, vote: newVote } }));
 
   const T = this._T();
-  const upBtn = this._shadow.querySelector('[data-vote-up-id="' + msgId + '"]');
+  const upBtn = this._shadow.querySelector('[data-vote-up-id="' + escSelector(msgId) + '"]');
   if (upBtn) {
     const votedUp = newVote === 'up';
     upBtn.style.color = votedUp ? '#16a34a' : T.textMuted;
     upBtn.innerHTML   = ICO.ThumbsUp(11, votedUp);
   }
-  const downBtn = this._shadow.querySelector('[data-vote-down-id="' + msgId + '"]');
+  const downBtn = this._shadow.querySelector('[data-vote-down-id="' + escSelector(msgId) + '"]');
   if (downBtn) {
     const votedDown = newVote === 'down';
     downBtn.style.color = votedDown ? '#dc2626' : T.textMuted;
@@ -220,13 +221,13 @@ export function _handleCopy(msgId, text) {
   } else { fallback(text); }
 
   this._st.copied = msgId;
-  const btn = this._shadow.querySelector('[data-copy-id="' + msgId + '"]');
+  const btn = this._shadow.querySelector('[data-copy-id="' + escSelector(msgId) + '"]');
   if (btn) { btn.innerHTML = ICO.Check(11); btn.style.color = '#16a34a'; }
 
   clearTimeout(this._timers.copy);
   this._timers.copy = setTimeout(() => {
     this._st.copied = null;
-    const b = this._shadow.querySelector('[data-copy-id="' + msgId + '"]');
+    const b = this._shadow.querySelector('[data-copy-id="' + escSelector(msgId) + '"]');
     if (b) { b.innerHTML = ICO.Copy(11); b.style.color = this._T().textMuted; }
   }, 1800);
 }
@@ -253,8 +254,9 @@ export function _handleFormSubmit(msgId, formType, data) {
 
 // ── KVKK Kabul ─────────────────────────────────────────────────────────────────
 /**
- * KVKK checkbox işaretlendiğinde çağrılır.
- * Session boyunca true kalır; sonraki formlarda KVKK satırı gizlenir.
+ * Artık dışarıdan çağrılmıyor — kvkkAccepted yalnızca _handleFormSubmit içinde
+ * set edilir (form submit anında). Checkbox change event'i bu fonksiyonu tetiklemez.
+ * Geriye dönük uyumluluk için export korundu; widget.js'de bağlanmaz.
  */
 export function _handleKvkkAccept() {
   this._st.kvkkAccepted = true;

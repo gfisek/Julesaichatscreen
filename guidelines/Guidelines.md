@@ -1,105 +1,118 @@
-# JULES Geliştirme Kılavuzu
+# JULES Gelistirme Kilavuzu
 
-Bu dosya, JULES AI Asistan projesinde yapay zeka destekli düzenlemeler için
-bağlam ve kural seti sağlar.
+Bu dosya, JULES AI Asistan projesinde yapay zeka destekli duzenlemeler icin
+baglam ve kural seti saglar.
 
 ---
 
-## Proje Özeti
+## Proje Ozeti
 
-JULES; Apple estetiğine sahip, glassmorphism efektli bir AI asistan widget'ıdır.
-İki paralel sistem barındırır:
+JULES; Apple estetigne sahip, glassmorphism efektli bir AI asistan widget'idir.
+Shadow DOM tabanli Web Component olarak (`/public/jules-src/`) gelistirilir;
+Vanilla JS + Shadow DOM ile production dagitimi yapilir.
 
-- **React Preview** (`/src/`) — Figma Make ortamında önizleme, Tailwind CSS v4
-- **Web Component** (`/public/jules-src/`) — Vanilla JS + Shadow DOM, production dağıtımı
-
-**Her güncelleme her iki tarafta da yapılmalıdır.**
+`/public/jules-widget.js` dosyasi her build'de `esbuild` tarafindan
+`jules-src/widget.js`'ten sifirdan uretilir; yalnizca `jules-src/` altindaki
+kaynak dosyalar duzenlenir.
 
 ---
 
 ## Genel Kurallar
 
-- Hiçbir zaman `jules-widget.js` veya `jules-widget.min.js` dosyalarını düzenleme;
-  bunlar build çıktısıdır, kaynak `jules-src/` altındadır.
-- Yeni özellik eklerken hem `jules-src/*.js` hem de ilgili `*.tsx` bileşenini güncelle.
-- Veri değişikliklerinde hem `jules-widget/config.json` + `cards.json`
-  hem de `src/data/jules-data.ts` güncellenmeli.
-- Türkçe içerikte `text-transform: uppercase` kullanma;
-  statik metinler büyük yazılsın, dinamikler `toLocaleUpperCase('tr-TR')` ile dönüştürülsün.
-- Kart yapısına `tags` alanı ekleme — bu alan kaldırıldı.
+- Hicbir zaman `jules-widget.js` veya `jules-widget.min.js` dosyalarini duzenleme;
+  bunlar build ciktisidir, kaynak `jules-src/` altindadir.
+- Veri degisikliklerinde `jules-widget/config.json` ve `cards.json` guncellenmeli.
+- Turkce icerikte `text-transform: uppercase` kullanma;
+  statik metinler buyuk yazilsin, dinamikler `toLocaleUpperCase('tr-TR')` ile donusturulsun.
+- Kart yapisina `tags` alani ekleme -- bu alan kaldirildi.
 
 ---
 
-## Dosya Sorumlulukları
+## Dosya Sorumluluklari
 
-| Dosya | Ne Değiştirilir |
+| Dosya | Ne Degistirilir |
 |-------|----------------|
-| `constants.js` | Emoji, typewriter phrase, default config, form tanımları |
-| `css.js` | Shadow DOM CSS — SHADOW_CSS string |
-| `icons.js` | ICO nesnesi — yeni ikon ekleme |
-| `utils.js` | Yardımcı fonksiyon ekleme/güncelleme |
-| `handlers.js` | Kullanıcı etkileşim mantığı |
+| `constants.js` | Emoji, typewriter phrase, default config, form tanimlari |
+| `shadow.css` | Shadow DOM CSS -- tum stiller burada, IDE tam destegi ile |
+| `css.js` | Yalnizca `shadow.css`'i import edip re-export eder -- duzenleme |
+| `icons.js` | ICO nesnesi -- yeni ikon ekleme, `weatherIcon` dispatcher |
+| `utils.js` | Yardimci fonksiyon ekleme/guncelleme (`esc`, `escSelector`, `isSafeUrl` vb.) |
+| `handlers.js` | Kullanici etkilesim mantigi |
 | `helpers.js` | UI helper, incremental update, hava durumu |
 | `render-chat.js` | Chat mesaj ve header render |
 | `render-input.js` | Orbit input, chip bar, footer render |
 | `render-content.js` | Kart ve favoriler paneli render |
-| `render-form.js` | Satır içi form render |
-| `widget.js` | State, lifecycle, public API — dikkatli değiştir |
+| `render-form.js` | Satir ici form render |
+| `widget.js` | State, lifecycle, public API -- dikkatli degistir |
 
 ---
 
-## Tasarım Sistemi
+## Tasarim Sistemi
 
 ### Renk Paleti
 
 ```
-primary:      #1c3d54   (koyu lacivert — başlık, buton)
+primary:      #1c3d54   (koyu lacivert -- baslik, buton)
 secondary:    #0a6e82   (orta teal)
-accent:       #1ba3b8   (canlı teal — CTA, badge kenarlığı)
-accentLight:  #4dc4ce   (açık teal — ikon vurgu, aktif durum)
-accentBg:     #e6f7f9   (çok açık teal — chip arka planı)
+accent:       #1ba3b8   (canli teal -- CTA, badge kenarligi)
+accentLight:  #4dc4ce   (acik teal -- ikon vurgu, aktif durum)
+accentBg:     #e6f7f9   (cok acik teal -- chip arka plani)
 ```
 
 ### Tipografi
 
-- Font: SF Pro Display → Inter → system-ui
-- Boyutlar mobilde: mesaj `13px`, kart başlık `13px`, açıklama `12px`, badge `10px`, CTA `11px`
-- Boyutlar desktop: +1–2px yukarı
-- `font-weight` ve `line-height` değerlerini Tailwind class'ı ile değil, inline style ile yaz
+- Font: SF Pro Display -> Inter -> system-ui
+- Boyutlar mobilde: mesaj `13px`, kart baslik `13px`, aciklama `12px`, badge `10px`, CTA `11px`
+- Boyutlar desktop: +1-2px yukari
+- `font-weight` ve `line-height` degerlerini Tailwind class'i ile degil, inline style ile yaz
 
-### İkonlar
+### Ikonlar
 
-Tüm ikonlar `ICO` nesnesinden çekilir (`icons.js`).
-Dışarıdan ikon kütüphanesi import edilmez; yeni ikon gerekiyorsa `ICO`'ya eklenir.
+Tum ikonlar `ICO` nesnesinden cekilir (`icons.js`).
+Disaridan ikon kutuphanesi import edilmez; yeni ikon gerekiyorsa `ICO`'ya eklenir.
+
+`ICO.weatherIcon(code, size)` -- WMO hava durumu kodlarini ikon metotlarina esler:
+
+| WMO Kod Araligi | Ikon |
+|------------------|------|
+| 0-1 | `Sun` |
+| 2-3 | `CloudSun` |
+| 45-48 | `CloudFog` |
+| 51-67 | `CloudRain` |
+| 71-77 | `Snowflake` |
+| 80-82 | `CloudRain` |
+| 85-86 | `CloudSnow` |
+| 95-99 | `CloudLightning` |
+| diger | `CloudSun` (fallback) |
 
 ---
 
-## Web Component Kuralları
+## Web Component Kurallari
 
-### State Yönetimi
+### State Yonetimi
 
-Tüm state `this._st` nesnesindedir; doğrudan property ataması yapma.
-State değişimi sonrası `this._build()` veya incremental güncelleme metodu çağrılır.
+Tum state `this._st` nesnesindedir; dogrudan property atamasi yapma.
+State degisimi sonrasi `this._build()` veya incremental guncelleme metodu cagrilir.
 
-### Incremental Güncelleme Önceliği
+### Incremental Guncelleme Onceligi
 
-Full `_build()` yerine mümkün olduğunda incremental metodları kullan:
+Full `_build()` yerine mumkun oldugunda incremental metodlari kullan:
 
-| Senaryo | Kullanılacak Metod |
-|---------|--------------------|
+| Senaryo | Kullanilacak Metod |
+|---------|-------------------|
 | Yeni mesaj | `_patchMessages()` |
-| İçerik paneli aç | `_openContentPanel()` |
-| İçerik paneli kapat | `_closeContentPanel()` |
-| Favori çekmece aç | `_showFavDrawerInc()` |
-| Favori çekmece kapat | `_hideFavDrawer()` |
-| Favori sayısı güncelle | `_patchFavDrawer()` |
+| Icerik paneli ac | `_openContentPanel()` |
+| Icerik paneli kapat | `_closeContentPanel()` |
+| Favori cekmece ac | `_showFavDrawerInc()` |
+| Favori cekmece kapat | `_hideFavDrawer()` |
+| Favori sayisi guncelle | `_patchFavDrawer()` |
 
-### Timer Yönetimi
+### Timer Yonetimi
 
-Tüm `setTimeout` / `setInterval` çağrıları `this._timers` nesnesine kaydedilmeli:
+Tum `setTimeout` / `setInterval` cagrilari `this._timers` nesnesine kaydedilmeli:
 
 ```js
-this._timers.myTimer = setTimeout(() => { … }, 300);
+this._timers.myTimer = setTimeout(() => { ... }, 300);
 ```
 
 `disconnectedCallback`'te otomatik temizlenir:
@@ -107,12 +120,12 @@ this._timers.myTimer = setTimeout(() => { … }, 300);
 Object.keys(this._timers).forEach(k => clearTimeout(this._timers[k]));
 ```
 
-Timer adları benzersiz olmalı. Var olan bir timera tekrar yazmadan önce `clearTimeout` yap.
+Timer adlari benzersiz olmali. Var olan bir timera tekrar yazmadan once `clearTimeout` yap.
 
 ### AbortController
 
-Async işlemler (fetch, geolocation) için AbortController kullan.
-`this._weatherAbort` örneğini model al:
+Async islemler (fetch, geolocation) icin AbortController kullan.
+`this._weatherAbort` ornegini model al:
 
 ```js
 if (this._myAbort) { this._myAbort.abort(); }
@@ -122,59 +135,111 @@ fetch(url, { signal: this._myAbort.signal });
 
 ---
 
-## Güvenlik Kuralları
+## Guvenlik Kurallari
 
-### URL Doğrulaması (ZORUNlu)
+### URL Dogrulamasi (ZORUNLU)
 
 `card.url`, `card.image`, `branding.poweredByUrl` ve herhangi bir harici URL'i
-doğrudan DOM'a yazmadan önce `isSafeUrl()` ile doğrula:
+dogrudan DOM'a yazmadan once `isSafeUrl()` ile dogrula:
 
 ```js
 import { isSafeUrl } from './utils.js';
 
-// Doğru
+// Dogru
 if (isSafeUrl(card.url)) window.open(card.url, '_blank', 'noopener noreferrer');
 
-// YANLIŞ — asla yapma
+// YANLIS -- asla yapma
 window.open(card.url, '_blank');
 ```
 
-### innerHTML Kuralları
+`isSafeUrl` yalnizca su prefixlere izin verir: `https://`, `http://`, `/`, `./`, `../`, `#`.
+`javascript:`, `data:`, `vbscript:` ve protocol-relative (`//evil.com`) reddedilir.
+
+### innerHTML Kurallari
 
 ```js
-// Sadece hardcoded string veya esc() edilmiş değer
-el.innerHTML = '<span>' + ICO.Check(12) + '</span>';           // ✅ hardcoded SVG
-el.innerHTML = '<b>' + esc(card.badge) + '</b>';               // ✅ esc()
-el.innerHTML = '<span>' + esc(sunLabel.label) + '</span>';     // ✅ esc()
+// Sadece hardcoded string veya esc() edilmis deger
+el.innerHTML = '<span>' + ICO.Check(12) + '</span>';           // DOGRU - hardcoded SVG
+el.innerHTML = '<b>' + esc(card.badge) + '</b>';               // DOGRU - esc()
+el.innerHTML = '<span>' + esc(sunLabel.label) + '</span>';     // DOGRU - esc()
 
-// Kullanıcı / harici veri için textContent kullan
-el.textContent = card.title;       // ✅
-el.textContent = msg.content;      // ✅
-el.innerHTML   = card.title;       // ❌ XSS riski
+// Sayi bile olsa API'den gelen deger esc() ile sarilmali (defense-in-depth)
+wRow.innerHTML = '...' + esc(String(wi.temp)) + '...'          // DOGRU - API degeri
+
+// Kullanici / harici veri icin textContent kullan
+el.textContent = card.title;       // DOGRU
+el.textContent = msg.content;      // DOGRU
+el.innerHTML   = card.title;       // YANLIS - XSS riski
 ```
 
-### Yeni Veri Alanı Eklerken Kontrol Listesi
+### querySelector Selector Injection Korumasi (ZORUNLU)
 
-1. Alan bir URL mi? → `isSafeUrl()` ile doğrula
-2. Alan `innerHTML`'e yazılacak mı? → `esc()` uygula
-3. Alan harici API'den mi geliyor? → Her iki kontrol de zorunlu
+Harici veriden gelen degerler (card.id, msgId vb.) `querySelector` attribute
+selector'larinda kullanilirken `escSelector()` ile sarilmalidir:
+
+```js
+import { escSelector } from './utils.js';
+
+// DOGRU
+shadow.querySelector('[data-like-key="' + escSelector(likeKey) + '"]');
+
+// YANLIS -- card.id icinde " karakteri varsa selector kirilir
+shadow.querySelector('[data-like-key="' + likeKey + '"]');
+```
+
+`escSelector()` `"` ve `\` karakterlerini backslash ile escape eder.
+
+### CSS Injection Korumasi (ZORUNLU)
+
+`_applyCSSVars()` config.json'dan gelen renk degerlerini CSS custom property
+olarak atar. Iki katmanli koruma vardir:
+
+**1. Renk degerleri:** Yalnizca su formatlara izin verilir:
+- Hex: `^#[0-9a-fA-F]{3,8}$`
+- Fonksiyonel: `^(?:rgba?|hsla?)\s*\([0-9.,\s%]+\)$` -- yalnizca rakamlara izin verir, `;` `url()` `expression()` reddedilir
+
+```js
+// Gecerli
+'#1c3d54', 'rgba(28, 61, 84, 0.9)', 'hsl(200, 50%, 20%)'
+
+// Reddedilir (CSS injection vektoru)
+'rgba(0,0,0);background:url(//evil.com)', '#fff;--jw-bg:red'
+```
+
+**2. Font ailesi:** Asagidaki karakterler yasaklidir: `< > " ' ; { } ( ) \`
+
+```js
+// Gecerli
+'Inter, system-ui, sans-serif'
+
+// Reddedilir
+'inherit;background:url(evil)', 'font;}'
+```
+
+### Yeni Veri Alani Eklerken Kontrol Listesi
+
+1. Alan bir URL mi? -> `isSafeUrl()` ile dogrula
+2. Alan `innerHTML`'e yazilacak mi? -> `esc()` uygula
+3. Alan harici API'den mi geliyor? -> Her iki kontrol de zorunlu
+4. Alan `querySelector` attribute selector'inda mi kullanilacak? -> `escSelector()` uygula
+5. Alan CSS custom property'ye mi yazilacak? -> `_applyCSSVars` pattern'ini kullan, dogrudan `style.setProperty` yapma
 
 ---
 
 ## Form Sistemi
 
-Yeni form tipi eklemek için **yalnızca** `constants.js`'i düzenle:
+Yeni form tipi eklemek icin **yalnizca** `constants.js`'i duzenle:
 
 ```js
-// constants.js → FORM_CONFIG
+// constants.js -> FORM_CONFIG
 telefon: {
   title:  'TELEFON',
   fields: ['telefon'],
-  reply:  'Telefon numaranızı alabilir miyim?',
+  reply:  'Telefon numaranizi alabilir miyim?',
 },
 ```
 
-`render-form.js` ve `handlers.js` dinamik okur; başka dosya değişmez.
+`render-form.js` ve `handlers.js` dinamik okur; baska dosya degismez.
 
 ---
 
@@ -183,25 +248,25 @@ telefon: {
 ### Kart Anatomisi
 
 ```
-┌─────────────────────────────┐
-│  [ROZET]                    │  ← badge (esc() ile)
-│  Başlık                     │  ← textContent
-│  Alt başlık                 │  ← textContent
-│  Açıklama metni             │  ← textContent
-│  [CTA Butonu →]             │  ← isSafeUrl(card.url)
-└─────────────────────────────┘
++-----------------------------+
+|  [ROZET]                    |  <- badge (esc() ile)
+|  Baslik                     |  <- textContent
+|  Alt baslik                 |  <- textContent
+|  Aciklama metni             |  <- textContent
+|  [CTA Butonu ->]            |  <- isSafeUrl(card.url)
++-----------------------------+
 ```
 
-- Tag (etiket) satırı **kaldırıldı** — ekleme.
-- `card.image` → `img.src` atamasından önce `isSafeUrl()` kontrolü.
-- Görsel yüklenemezse `img.onerror` → arka plan rengi göster.
+- Tag (etiket) satiri **kaldirildi** -- ekleme.
+- `card.image` -> `img.src` atamasindan once `isSafeUrl()` kontrolu.
+- Gorsel yuklenemezse `img.onerror` -> arka plan rengi goster.
 
-### Kart Tipi Seçimi
+### Kart Tipi Secimi
 
-| `card.image` var mı? | Kullanılan render |
+| `card.image` var mi? | Kullanilan render |
 |---------------------|-------------------|
 | Evet | `_buildCardPhoto(card)` |
-| Hayır | `_buildCardNoImage(card)` |
+| Hayir | `_buildCardNoImage(card)` |
 
 ---
 
@@ -209,12 +274,13 @@ telefon: {
 
 ### Shadow DOM
 
-Tüm stiller `css.js`'teki `SHADOW_CSS` string'inde; class tanımları burada.
-Yeni stil gerektiğinde buraya ekle, başka yere ekleme.
+Tum stiller `/public/jules-src/shadow.css` icinde; class tanimlari burada.
+Yeni stil gerektiginde buraya ekle, baska yere ekleme.
+`css.js` dosyasini duzenleme -- o sadece bir bridge moduludur.
 
 ### CSS Custom Properties
 
-Widget host element üzerinde tanımlı:
+Widget host element uzerinde tanimli:
 
 ```
 --jules-primary      --jules-secondary    --jules-accent
@@ -223,20 +289,34 @@ Widget host element üzerinde tanımlı:
 --jw-text-secondary  --jw-text-muted      --jw-border
 ```
 
-Renk değerleri yalnızca `_applyCSSVars()` üzerinden set edilir; doğrudan `style.setProperty` çağrısından kaçın.
+Renk degerleri yalnizca `_applyCSSVars()` uzerinden set edilir; dogrudan `style.setProperty` cagrisindan kacin.
+`_applyCSSVars` ici `setSafe()` fonksiyonu regex ile dogrulama yapar -- bkz. "CSS Injection Korumasi".
+
+---
+
+## Guvenlik Utility Referansi
+
+| Fonksiyon | Dosya | Amac |
+|-----------|-------|------|
+| `esc(s)` | `utils.js` | HTML entity escape -- innerHTML'e yazilan tum harici/API degerleri icin |
+| `escSelector(s)` | `utils.js` | CSS selector attribute value escape -- querySelector icin |
+| `isSafeUrl(url)` | `utils.js` | URL protokol whitelist -- href/src/window.open icin |
+| `setSafe()` | `widget.js` (`_applyCSSVars` icinde) | CSS custom property degeri dogrulama |
 
 ---
 
 ## Test Kontrol Listesi
 
-Bir değişiklik tamamlandığında:
+Bir degisiklik tamamlandiginda:
 
-- [ ] React preview'da görsel doğrulama yapıldı
-- [ ] `npm run widget:build` hatasız tamamlandı
-- [ ] `demo.html`'de açılış, mesaj gönderme, kart görüntüleme test edildi
+- [ ] React preview'da gorsel dogrulama yapildi
+- [ ] `npm run widget:build` hatasiz tamamlandi
+- [ ] `demo.html`'de acilis, mesaj gonderme, kart goruntuleme test edildi
 - [ ] Dark mode test edildi
-- [ ] Mobil (< 768px) görünümü test edildi
+- [ ] Mobil (< 768px) gorunumu test edildi
 - [ ] Pinned Right modu test edildi
-- [ ] Yeni URL alanı varsa `isSafeUrl()` testi yapıldı
-- [ ] Yeni `innerHTML` varsa `esc()` kullanıldığı doğrulandı
-- [ ] Yeni timer varsa `this._timers` kaydedildiği kontrol edildi
+- [ ] Yeni URL alani varsa `isSafeUrl()` testi yapildi
+- [ ] Yeni `innerHTML` varsa `esc()` kullanildigi dogrulandi
+- [ ] Yeni timer varsa `this._timers` kaydedildigi kontrol edildi
+- [ ] Yeni querySelector attribute selector'i varsa `escSelector()` kullanildigi dogrulandi
+- [ ] Yeni CSS custom property atamasi varsa `_applyCSSVars`/`setSafe` pattern'i kullanildigi dogrulandi

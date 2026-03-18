@@ -57,6 +57,16 @@ export function esc(s) {
     .replace(/'/g, '&#39;');
 }
 
+// ── CSS Selector attribute value escape ─────────────────────────────────────────
+/**
+ * escSelector — querySelector('[attr="value"]') pattern'inde value kısmını güvenli hale getirir.
+ * " ve \ karakterlerini backslash ile escape eder. Harici veri (card.id vb.) selector'a
+ * yazılmadan önce bu fonksiyonla sarılmalıdır.
+ */
+export function escSelector(s) {
+  return String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
 // ── Tarih ───────────────────────────────────────────────────────────────────────
 export function getDateStr() {
   return new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' });

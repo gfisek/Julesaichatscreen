@@ -5,12 +5,23 @@
 export const EMOJIS = ['👋🏼', '🖖🏼', 'BOT_ICON', '👇🏼', '👍🏼', '🙏🏼', '🤝🏼', '👏🏼'];
 
 export const TW_PHRASES = [
-  'iPhone 16 Pro karşılaştır...',
-  'MacBook Air mı, Pro mu?',
-  'En iyi AirPods hangisi?',
-  'Mac mini vs iMac...',
-  'Apple Watch Series 10...',
-  'Bütçeme uygun Apple ürünü...',
+  'iPhone 16 ile 16 Pro arasındaki fark nedir?',
+  'MacBook Air mı Pro mu almalıyım?',
+  'Servis randevusu nasıl alırım?',
+  'En uygun fiyatlı iPhone hangisi?',
+  'Ekran tamiri ne kadar sürer?',
+  'AppleCare+ almadan garanti kaç yıl?',
+  'iPad Air ile MacBook hangisi daha iyi?',
+  'iPhone 15 Pro hâlâ alınır mı?',
+];
+
+export const MINI_TW_PHRASES = [
+  'iPhone 16 Pro?',
+  'Mac Air mı, Pro mu?',
+  'iPad modelleri',
+  'Servis randevusu',
+  'AppleCare+ nedir?',
+  'Garantim doldu?',
 ];
 
 export const DEFAULT_CONFIG = {
@@ -28,10 +39,10 @@ export const DEFAULT_CONFIG = {
   },
   font: { family: 'inherit' },
   suggestions: [
-    'iPhone 16 serisi',
+    'iPhone modelleri',
     'Mac modelleri',
-    'AirPods & aksesuarlar',
-    'En çok satanlar',
+    'iPad modelleri',
+    'Servis randevusu',
   ],
   defaultReplies: [
     'Elbette! Apple ürünleri hakkında her konuda size yardımcı olmaya hazırım. Hangi ürün veya özellik ilginizi çekiyor?',

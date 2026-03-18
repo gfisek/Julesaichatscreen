@@ -10,7 +10,7 @@ import { esc, isSafeUrl } from './utils.js';
 function buildEqBars() {
   const wrap = document.createElement('span');
   wrap.style.cssText = 'position:absolute;inset:0;display:none;align-items:center;justify-content:center;gap:1.5px;pointer-events:none;';
-  const colors = ['#ff4d6d','#ff9a3c','#f7d700','#2ecc71','#4dc4ce','#4488ff'];
+  const colors = ['rgba(255,77,109,0.7)','rgba(255,154,60,0.7)','rgba(247,215,0,0.7)','rgba(46,204,113,0.7)','rgba(77,196,206,0.7)','rgba(68,136,255,0.7)'];
   const delays = [0, 85, 170, 255, 170, 85];
   colors.forEach((c, i) => {
     const bar = document.createElement('span');
@@ -107,6 +107,11 @@ export function _buildInputArea(isCompact) {
     });
     const vv = window.visualViewport;
     if (vv) {
+      // Önceki listener'ı temizle — her _buildInputArea çağrısında yeni listener eklenmesini önler
+      if (this._cleanupMobileKeyboard) {
+        this._cleanupMobileKeyboard();
+        this._cleanupMobileKeyboard = null;
+      }
       const handleVVResize = () => {
         if (document.activeElement === ta || this._shadow.activeElement === ta) {
           requestAnimationFrame(() => { orbitWrap.scrollIntoView({ behavior: 'smooth', block: 'end' }); });
@@ -120,6 +125,8 @@ export function _buildInputArea(isCompact) {
   taParent.appendChild(ta);
 
   if (st.messages.length === 0) {
+    // Stale timer'ı iptal et (widget.js _build()'de de yapılır; burada double-guard)
+    clearTimeout(this._timers.twStart);
     this._timers.twStart = setTimeout(() => this._startTypewriter(ta), 80);
   }
 
@@ -313,7 +320,8 @@ export function _toggleMic(ta) {
     this._st.isListening = false;
     this._recognition = null;
     this._updateMicUI(false);
-    setTimeout(() => ta.focus(), 80);
+    clearTimeout(this._timers.micFocus);
+    this._timers.micFocus = setTimeout(() => ta.focus(), 80);
   };
 
   rec.onerror = e => {
@@ -393,7 +401,8 @@ export function _showMicToast(message) {
     this._shadow.appendChild(toast);
   }
 
-  setTimeout(() => { if (toast.parentNode) toast.remove(); }, 3500);
+  clearTimeout(this._timers.micToast);
+  this._timers.micToast = setTimeout(() => { if (toast.parentNode) toast.remove(); }, 3500);
 }
 
 // ── Speaker (TTS stub) ─────────────────────────────────────────────────────────
@@ -486,7 +495,8 @@ export function _buildPinSwitch() {
     const isPinnedNew = !this._st.isPinnedRight;
     thumb.style.left = isPinnedNew ? '25px' : '4px';
     thumb.innerHTML = '<span style="display:inline-flex;color:rgba(255,255,255,0.9);">' + (isPinnedNew ? ICO.SidebarSimple(8) : ICO.Monitor(8)) + '</span>';
-    setTimeout(() => this._handleTogglePinned(), 340);
+    clearTimeout(this._timers.pinToggle);
+    this._timers.pinToggle = setTimeout(() => this._handleTogglePinned(), 340);
   });
 
   // Fix #6: _syncTheme — replaceChild yerine doğrudan güncelleme
@@ -600,7 +610,8 @@ export function _buildDarkSwitch() {
     const isDarkNew = !this._st.isDark;
     thumb.style.left = isDarkNew ? '25px' : '4px';
     thumb.innerHTML = '<span style="display:inline-flex;color:rgba(255,255,255,0.9);">' + (isDarkNew ? ICO.Moon(9, 'fill') : ICO.Sun(9, 'fill')) + '</span>';
-    setTimeout(() => {
+    clearTimeout(this._timers.darkToggle);
+    this._timers.darkToggle = setTimeout(() => {
       this._st.isDark = isDarkNew;
       this.dispatchEvent(new CustomEvent('jules:darkchange', { detail: { isDark: this._st.isDark } }));
       this._applyTheme();

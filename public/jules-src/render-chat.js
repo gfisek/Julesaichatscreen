@@ -6,7 +6,7 @@
 import { ICO }                              from './icons.js';
 import { esc, formatTime, getDateStr,
          getSunLabel, weatherIconHtml }     from './utils.js';
-import { EMOJIS, TW_PHRASES }              from './constants.js';
+import { EMOJIS, TW_PHRASES, MINI_TW_PHRASES }              from './constants.js';
 
 const MINI_RETURN_PHRASE = 'Size nasıl yardımcı olabilirim?';
 
@@ -74,7 +74,7 @@ export function _buildMiniJules() {
   mini.appendChild(row);
 
   // requestAnimationFrame ile typewriter başlat — arbitrary setTimeout yerine
-  requestAnimationFrame(() => this._startTypewriter(ta, this._st.messages.length > 0));
+  requestAnimationFrame(() => this._startTypewriter(ta, this._st.messages.length > 0, true));
 
   return mini;
 }
@@ -164,7 +164,7 @@ export function _buildHeader(isCompact) {
     wRow.id = 'jw-weather-row';
     wRow.style.cssText = 'display:flex;align-items:center;gap:4px;flex-shrink:0;';
     wRow.innerHTML = weatherIconHtml(st.weatherInfo.code, 'var(--jw-accent-color)', 14) +
-      '<span style="font-size:10px;color:var(--jw-text-secondary);white-space:nowrap;">' + st.weatherInfo.temp + '°C</span>';
+      '<span style="font-size:10px;color:var(--jw-text-secondary);white-space:nowrap;">' + esc(String(st.weatherInfo.temp)) + '°C</span>';
     dateRow.appendChild(wRow);
 
     const sunLabel = getSunLabel(st.weatherInfo);
@@ -259,15 +259,30 @@ export function _buildWelcome(isCompact) {
   // Suggestion chips — padding normalize edildi (suggestions bar ile aynı: 6px 12px)
   const chipsDiv = document.createElement('div');
   chipsDiv.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:8px;';
-  suggestions.forEach(s => {
+
+  // Ease-out stagger: boşluklar artar → ilk chip hızlı, sonrakiler giderek gecikmeli
+  const chipDelay = (i) => 700 + Math.round(Math.pow(i, 1.4) * 120);
+
+  suggestions.forEach((s, idx) => {
     const chip = document.createElement('button');
     chip.className = 'jw-btn jw-sugg-chip';
     chip.textContent = s;
-    chip.style.cssText = 'padding:6px 12px;font-size:10px;border:1px solid ' + T.accentDimBdr + ';color:' + T.textSecondary + ';border-radius:12px;font-family:inherit;transition:all 0.15s;';
+    // Başlangıç: gizli + aşağıda
+    chip.style.cssText = 'padding:6px 12px;font-size:10px;border:1px solid ' + T.accentDimBdr + ';color:' + T.textSecondary + ';border-radius:12px;font-family:inherit;background:transparent;opacity:0;transform:translateY(12px);will-change:opacity,transform;';
     chip.addEventListener('mouseenter', () => { chip.style.borderColor = T.accentColor; chip.style.color = T.accentColor; chip.style.background = T.accentDimBg; });
     chip.addEventListener('mouseleave', () => { chip.style.borderColor = T.accentDimBdr; chip.style.color = T.textSecondary; chip.style.background = 'transparent'; });
     chip.addEventListener('click', () => this._handleSend(s));
     chipsDiv.appendChild(chip);
+
+    // Stagger animasyonu — double rAF + gecikme
+    const delay = chipDelay(idx);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      this._timers['chip_in_' + idx] = setTimeout(() => {
+        chip.style.transition = 'opacity 560ms cubic-bezier(0,0,0.2,1), transform 560ms cubic-bezier(0,0,0.2,1), border-color 0.15s, color 0.15s, background 0.15s';
+        chip.style.opacity    = '1';
+        chip.style.transform  = 'translateY(0)';
+      }, delay);
+    }));
   });
   wrap.appendChild(chipsDiv);
 
@@ -432,9 +447,9 @@ export function _buildTyping() {
 }
 
 // ── Typewriter Placeholder ────────────────────────────────────────────────────
-export function _startTypewriter(ta, hasMessages) {
+export function _startTypewriter(ta, hasMessages, isMini = false) {
   if (!ta) return;
-  const phrases = TW_PHRASES;
+  const phrases = isMini ? MINI_TW_PHRASES : TW_PHRASES;
   let phraseIdx = 0;
   let active = true;
   let currentTimer = null;
@@ -561,7 +576,8 @@ export function _buildSuggestions(isCompact) {
       const orbit = this._refs.inputOrbit;
       if (orbit) {
         orbit.classList.add('jw-orbit-glow');
-        setTimeout(() => orbit.classList.remove('jw-orbit-glow'), 800);
+        clearTimeout(this._timers.orbitGlow);
+        this._timers.orbitGlow = setTimeout(() => orbit.classList.remove('jw-orbit-glow'), 800);
       }
     });
     bar.appendChild(chip);

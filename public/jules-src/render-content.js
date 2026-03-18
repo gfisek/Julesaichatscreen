@@ -6,7 +6,8 @@
  */
 import { ICO }                    from './icons.js';
 import { esc, formatTime,
-         heartHtml, isSafeUrl }   from './utils.js';
+         heartHtml, isSafeUrl,
+         escSelector }   from './utils.js';
 
 // ── Content Panel ──────────────────────────────────────────────────────────────
 export function _buildContentPanel() {
@@ -103,7 +104,7 @@ export function _buildContentPanel() {
 
   if (st.activeCardMsgId) {
     this._timers.cpScroll = setTimeout(() => {
-      const el = sessionList.querySelector('[data-session-id="' + st.activeCardMsgId + '"]');
+      const el = sessionList.querySelector('[data-session-id="' + escSelector(st.activeCardMsgId) + '"]');
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
   }
@@ -277,7 +278,7 @@ export function _updateDots(dotEls, activeIdx, T) {
   });
 }
 
-// ── Card View ──────────────────────────────────────────────────────────────────
+// ── Card View ────────────────────────────���─────────────────────────────────────
 // Hatalı/eksik card objesi için güvenli guard
 export function _buildCardView(card, sessionId, liked) {
   if (!card || !card.id) {

@@ -11,13 +11,14 @@
  */
 import { ICO }                              from './icons.js';
 import { weatherIconHtml, getSunLabel,
-         lockBodyScroll, esc }              from './utils.js';
+         lockBodyScroll, esc,
+         escSelector }              from './utils.js';
 import { EMOJIS }                           from './constants.js';
 
 // ══════════════════════════════════════════════════════════════════════════════
 // _T() — CSS custom property referans token'ları
 // CSS var() stringleri Shadow DOM'da paint-time çözümlenir; tek seferlik cache.
-// ══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
 export function _T() {
   if (this._tCache) return this._tCache;
   this._tCache = {
@@ -45,7 +46,7 @@ export function _T() {
 // _makeAccentBtn — 24×24 accent icon button factory
 // Header ve content panel'deki kapat/toggle butonları için ortak factory.
 // Live-reads this._st.isDark in hover handlers → stale closure yok.
-// ══════════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 export function _makeAccentBtn(icon, title) {
   const T    = this._T();
   const isDk = this._st.isDark;
@@ -96,7 +97,7 @@ export function _buildEmptyFavsWrap() {
   return wrap;
 }
 
-// ── Favori sayaç yardımcıları ───────────────────────────────────────────────
+// ── Favori sayaç yardımcıları ─���─────────────────────────────────────────────
 /**
  * _getFavCount — Toplam beğenilen kart sayısı.
  * _favCountCache ile önbelleğe alınır; _handleLike'da invalidate edilir.
@@ -223,7 +224,7 @@ export function _fetchWeather() {
     wRow.id = 'jw-weather-row';
     wRow.style.cssText = 'display:flex;align-items:center;gap:4px;flex-shrink:0;';
     wRow.innerHTML = weatherIconHtml(wi.code, 'var(--jw-accent-color)', 14) +
-      '<span style="font-size:10px;color:var(--jw-text-secondary);white-space:nowrap;">' + wi.temp + '°C</span>';
+      '<span style="font-size:10px;color:var(--jw-text-secondary);white-space:nowrap;">' + esc(String(wi.temp)) + '°C</span>';
     dateRow.appendChild(wRow);
 
     const sunLabel = getSunLabel(wi);
@@ -268,7 +269,7 @@ export function _fetchWeather() {
   );
 }
 
-// ══════════════���═══════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 // Incremental DOM Update Methods
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -314,13 +315,19 @@ export function _patchMessages() {
     existingTyping.remove();
   }
 
-  // Typing sırasında send butonunu görsel olarak disabled yap
+  // Typing sırasında send butonunu görsel olarak disabled yap,
+  // değer varken aktif; iki ayrı blok yerine tek konsolide güncelleme.
   if (this._refs.sendBtn) {
     if (st.isTyping) {
-      this._refs.sendBtn.style.opacity = '0.3';
-      this._refs.sendBtn.style.cursor  = 'not-allowed';
+      this._refs.sendBtn.style.opacity       = '0.3';
+      this._refs.sendBtn.style.cursor        = 'not-allowed';
       this._refs.sendBtn.style.pointerEvents = 'none';
+      this._refs.sendBtn.style.color         = this._T().textMuted;
     } else {
+      const hasVal = (st.inputValue || '').trim().length > 0;
+      this._refs.sendBtn.style.opacity       = hasVal ? '1' : '0.4';
+      this._refs.sendBtn.style.cursor        = hasVal ? 'pointer' : 'not-allowed';
+      this._refs.sendBtn.style.color         = hasVal ? this._T().accentColor : this._T().textMuted;
       this._refs.sendBtn.style.pointerEvents = '';
     }
   }
@@ -351,12 +358,7 @@ export function _patchMessages() {
       if (inner) { inner.style.minHeight = '54px'; inner.style.height = '54px'; }
     }
   }
-  if (this._refs.sendBtn) {
-    const hasVal = (st.inputValue || '').trim().length > 0;
-    this._refs.sendBtn.style.opacity = hasVal ? '1' : '0.4';
-    this._refs.sendBtn.style.cursor  = hasVal ? 'pointer' : 'not-allowed';
-    this._refs.sendBtn.style.color   = hasVal ? this._T().accentColor : this._T().textMuted;
-  }
+  // sendBtn zaten yukarıda konsolide edildi — tekrar güncelleme yok
 
   this._scrollToLastMessage();
 }
@@ -474,7 +476,7 @@ export function _refreshContentPanelBody() {
 
   if (st.activeCardMsgId) {
     this._timers.cpBodyScroll = setTimeout(() => {
-      const el = sessionList.querySelector('[data-session-id="' + st.activeCardMsgId + '"]');
+      const el = sessionList.querySelector('[data-session-id="' + escSelector(st.activeCardMsgId) + '"]');
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 80);
   }
@@ -541,7 +543,7 @@ export function _hideFavDrawer() {
   if (backdrop) backdrop.remove();
 }
 
-// ── Fav Drawer: İncremental güncelleme ────────────────────────────────────────
+// ── Fav Drawer: İncremental güncelleme ────────────��───────────────────────────
 /**
  * Like/unlike sonrası drawer'ı tamamen rebuild etmek yerine
  * sadece grid içeriğini ve header sayacını günceller.
@@ -613,9 +615,8 @@ export function _patchFormMessage(msgId) {
 // ── Intro Sequence — Session'da bir kez çalışır ───────────────────────────────
 /**
  * İlk MiniJules tıklamasında:
- *  Faz 1 (1400ms): MiniJules merkeze uçar
- *  Faz 2 (~1600ms): Textarea'ya typewriter "Hoş geldiniz..." yazar
- *  Faz 3 (1400ms): MiniJules aşağıya inerken Jules fade-in ile açılır
+ *  Faz 1 (0ms)  : MiniJules yer çekimiyle hızlı aşağıya düşer (480ms ease-in).
+ *  Faz 2 (320ms): Jules a��ağıdan scale+blur ile yükselir — morfing hissi.
  *
  * Tüm timer'lar this._timers namespace'inde — disconnectedCallback'te temizlenir.
  */
@@ -623,117 +624,46 @@ export function _runIntroSequence() {
   const mini = this._shadow.getElementById('jw-mini');
   if (!mini) { this.expand(); return; }
 
-  const INTRO_PART1  = 'Hoş geldiniz, ben asistanınız Jules.';
-  const INTRO_PART2  = 'Size nasıl yardımcı olabilirim?';
-  const viewH        = window.innerHeight;
-  const viewW        = window.innerWidth;
-  const elH          = mini.offsetHeight || 44;
-  const isPinned     = this._st.isPinnedRight && !this._st.isMobile;
-
-  const targetY = viewH / 2 - elH / 2 - 80;
-  const targetX = isPinned ? (viewW / 2 - (viewW - 195)) : 0;
+  const viewH = window.innerHeight;
 
   mini.style.pointerEvents = 'none';
 
   if (this._twStop) { this._twStop(); this._twStop = null; }
 
-  // Faz 1: Merkeze uçuş
+  // Faz 1: MiniJules yer çekimiyle ivmelenerek düşer (ease-in, 2x yavaş)
   requestAnimationFrame(() => {
-    mini.style.transition = 'transform 1400ms cubic-bezier(0.22, 1, 0.36, 1)';
-    mini.style.transform  = isPinned
-      ? 'translate(' + targetX + 'px, ' + targetY + 'px)'
-      : 'translateY(' + targetY + 'px)';
+    mini.style.transition = 'transform 960ms cubic-bezier(0.4, 0, 1, 1), opacity 320ms ease-in 600ms';
+    mini.style.transform  = 'translateY(' + (viewH + 80) + 'px) scale(0.88)';
+    mini.style.opacity    = '0';
   });
 
-  const ta    = mini.querySelector('.jw-mini-ta');
-  const inner = mini.querySelector('#jw-mini-inner');
+  // Faz 2 (640ms): Jules aşağıdan scale + blur ile ease-out yükselir
+  this._timers.intro_open = setTimeout(() => {
+    if (this._twStop) { this._twStop(); this._twStop = null; }
+    this._st.isMinimized = false;
+    this._st.isOpen      = true;
 
-  if (inner) {
-    if (this._st.isMobile) {
-      inner.style.transition = 'background 0.3s';
-    } else {
-      inner.style.transition = 'height 0.5s ease, background 0.3s';
-    }
-    inner.style.height = '60px';
-    inner.style.alignItems = 'center';
-    inner.style.paddingBottom = '0';
-  }
-  if (ta) {
-    ta.rows = 2;
-    ta.style.alignSelf = 'center';
-    ta.style.maxHeight = '46px';
-    ta.style.overflowY = 'hidden';
-    ta.setAttribute('tabindex', '-1');
-    ta.style.pointerEvents = 'none';
-    ta.blur();
-  }
+    lockBodyScroll();
+    this._build();
 
-  // Timer yardımcısı — this._timers namespace'ine kaydeder; disconnectedCallback'te temizlenir
-  let _introTimerSeq = 0;
-  const sched = (fn, ms) => {
-    const key = 'intro_seq_' + (++_introTimerSeq);
-    this._timers[key] = setTimeout(() => {
-      delete this._timers[key];
-      fn();
-    }, ms);
-  };
-
-  const typeStr = (str, speedMs, onDone) => {
-    let i = 0;
-    const step = () => {
-      if (ta) ta.placeholder = str.slice(0, i);
-      i++;
-      if (i <= str.length) sched(step, speedMs);
-      else onDone();
-    };
-    step();
-  };
-
-  const startExit = () => {
-    mini.style.transition = 'transform 1700ms cubic-bezier(0.4, 0, 1, 1), opacity 400ms ease-in 1150ms';
-    mini.style.transform  = 'translateY(' + (viewH + 100) + 'px)';
-    mini.style.opacity    = '0';
-
-    this._timers.intro_open = setTimeout(() => {
-      if (this._twStop) { this._twStop(); this._twStop = null; }
-      this._st.isMinimized = false;
-      this._st.isOpen      = true;
-
-      lockBodyScroll();
-      this._build();
-
-      const box = this._refs.box;
-      if (box) {
-        box.style.transform  = 'translateY(0)';
-        box.style.opacity    = '0';
-        box.style.transition = 'none';
+    const box = this._refs.box;
+    if (box) {
+      box.style.transform  = 'translateY(60px) scale(0.96)';
+      box.style.opacity    = '0';
+      box.style.filter     = 'blur(6px)';
+      box.style.transition = 'none';
+      requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            box.style.transition = 'opacity 800ms cubic-bezier(0.16,1,0.3,1)';
-            box.style.opacity    = '1';
-          });
+          box.style.transition = 'transform 886ms cubic-bezier(0,0,0.2,1), opacity 714ms cubic-bezier(0,0,0.2,1), filter 714ms cubic-bezier(0,0,0.2,1)';
+          box.style.transform  = 'translateY(0) scale(1)';
+          box.style.opacity    = '1';
+          box.style.filter     = 'blur(0px)';
         });
-      }
-      this._installFocusTrap();
-      this._startEmojiCycle();
-    }, 1050);
-  };
+      });
+    }
+    this._installFocusTrap();
+    this._startEmojiCycle();
+  }, 640);
 
-  // Faz 2: 1400ms sonra başlat
-  this._timers.intro_fly = setTimeout(() => {
-    if (ta) ta.placeholder = '';
-
-    typeStr(INTRO_PART1, 30, () => {
-      sched(() => {
-        let idx = 0;
-        const typePart2 = () => {
-          if (ta) ta.placeholder = INTRO_PART1 + (idx > 0 ? '\n' + INTRO_PART2.slice(0, idx) : '');
-          idx++;
-          if (idx <= INTRO_PART2.length) sched(typePart2, 30);
-          else sched(startExit, 1300);
-        };
-        typePart2();
-      }, 900);
-    });
-  }, 1400);
+  // MiniJules DOM temizleme artık gerekli değil — _build() zaten innerHTML='' ile sıfırlıyor
 }

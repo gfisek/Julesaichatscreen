@@ -175,7 +175,8 @@ class JulesWidget extends HTMLElement {
         overlay.style.webkitBackdropFilter = 'none';
       }
 
-      setTimeout(() => {
+      clearTimeout(this._timers.minimize);
+      this._timers.minimize = setTimeout(() => {
         this._st.isOpen      = false;
         this._st.isMinimized = true;
         unlockBodyScroll();
@@ -262,14 +263,18 @@ class JulesWidget extends HTMLElement {
 
   // ── Config CSS değişkeni güvenli setter ────────────────────────────────────
   _applyCSSVars() {
-    const VALID_COLOR = /^#[0-9a-fA-F]{3,8}$|^rgba?\s*\(.+\)$|^hsla?\s*\(.+\)$|^[a-z]+$/i;
+    const VALID_COLOR = /^#[0-9a-fA-F]{3,8}$/;
+    const VALID_FUNC  = /^(?:rgba?|hsla?)\s*\([0-9.,\s%]+\)$/i;
     const c    = this._config.colors || {};
     const f    = this._config.font   || {};
     const host = this._shadow.host;
 
     const setSafe = (prop, val) => {
-      if (val && typeof val === 'string' && VALID_COLOR.test(val.trim())) {
-        host.style.setProperty(prop, val.trim());
+      if (val && typeof val === 'string') {
+        const v = val.trim();
+        if (VALID_COLOR.test(v) || VALID_FUNC.test(v)) {
+          host.style.setProperty(prop, v);
+        }
       }
     };
 
@@ -279,7 +284,7 @@ class JulesWidget extends HTMLElement {
     setSafe('--jules-accent-light', c.accentLight);
     setSafe('--jules-accent-bg',    c.accentBg);
 
-    if (f.family && typeof f.family === 'string' && f.family.length < 200 && !/[<>"']/.test(f.family)) {
+    if (f.family && typeof f.family === 'string' && f.family.length < 200 && !/[<>"';{}()\\]/.test(f.family)) {
       host.style.setProperty('--jules-font', f.family);
     }
   }
@@ -372,6 +377,8 @@ class JulesWidget extends HTMLElement {
       this._lastIsCompact === isCompact;
 
     if (!canReuseInput) {
+      // twStart timer'ı iptal et — stale ta üzerinde typewriter leak'ini önler
+      clearTimeout(this._timers.twStart);
       if (this._twStop) { this._twStop(); this._twStop = null; }
     }
 

@@ -25,7 +25,8 @@
 │   ├── widget.js                # Entry point: JulesWidget sınıfı, lifecycle, state
 │   ├── constants.js             # Sabitler: EMOJIS, TW_PHRASES, DEFAULT_CONFIG,
 │   │                            #   DEFAULT_CARDS, FORM_CONFIG, FIELD_META
-│   ├── css.js                   # Shadow DOM stylesheet: export SHADOW_CSS (string)
+│   ├── shadow.css               # Shadow DOM stylesheet (kaynak CSS — IDE tam destek)
+│   ├── css.js                   # shadow.css'i import edip SHADOW_CSS olarak re-export eder
 │   ├── icons.js                 # export ICO — Lucide (stroke) + Phosphor (fill) SVG'leri
 │   ├── utils.js                 # Yardımcı fonksiyonlar (aşağıda detay)
 │   ├── handlers.js              # Kullanıcı etkileşim handler'ları
@@ -104,21 +105,6 @@ esbuild watch otomatik bundle günceller
        ↓
 Tarayıcıda F5
 ```
-
-### İki Sistemi Senkron Tut
-
-Her `jules-src/` değişikliği için paralel React değişikliği de yapılmalıdır:
-
-| WC tarafı | React tarafı |
-|-----------|-------------|
-| `render-chat.js` | `ChatPanel.tsx`, `MessageList.tsx` |
-| `render-input.js` | `ChatInput.tsx`, `JulesOrbitInput.tsx` |
-| `render-content.js` | `ContentPanel.tsx` |
-| `render-form.js` | `InlineForm.tsx` |
-| `helpers.js` | `ChatHeader.tsx` |
-| `constants.js` | `jules-data.ts` |
-| `jules-widget/config.json` | `jules-data.ts` → `JULES_CONFIG` |
-| `jules-widget/cards.json` | `jules-data.ts` → `JULES_CARDS` |
 
 ---
 
@@ -411,12 +397,15 @@ this._cards = {
 
 ### CSS Custom Property Doğrulaması
 
-`_applyCSSVars()` içinde renk değerleri regex ile doğrulanır:
+`_applyCSSVars()` içinde `setSafe()` fonksiyonu renk değerlerini iki regex ile doğrular:
 ```
-/^#[0-9a-fA-F]{3,8}$|^rgba?\s*\(.+\)$|^hsla?\s*\(.+\)$|^[a-z]+$/i
+VALID_COLOR: /^#[0-9a-fA-F]{3,8}$/
+VALID_FUNC:  /^(?:rgba?|hsla?)\s*\([0-9.,\s%]+\)$/i
 ```
+Yalnızca rakam, virgül, nokta, boşluk ve `%` içeren parantez içeriğine izin verilir;
+`;`, `url()`, `expression()` gibi CSS injection vektörleri reddedilir.
 
-Font `family` değeri 200 karakter sınırı ve `[<>"']` karakter kontrolü ile doğrulanır.
+Font `family` değeri 200 karakter sınırı ve `[<>"';{}()\\]` karakter kontrolü ile doğrulanır.
 
 ---
 
@@ -465,5 +454,5 @@ Content-Security-Policy:
 
 ---
 
-**Version:** 2.1
-**Last Updated:** 17 Mart 2026
+**Version:** 2.2
+**Last Updated:** 18 Mart 2026

@@ -123,9 +123,7 @@ export function _buildInlineForm(formType, msgId) {
     const kvkkBox = document.createElement('input');
     kvkkBox.type = 'checkbox';
     kvkkBox.className = 'jw-kvkk-check';
-    kvkkBox.addEventListener('change', () => {
-      if (kvkkBox.checked) this._handleKvkkAccept();
-    });
+    // NOT burada global state mutasyonu yapma — sadece submit'te set edilmeli
     kvkkRow.appendChild(kvkkBox);
 
     const kvkkTxt = document.createElement('span');
@@ -162,6 +160,8 @@ export function _buildInlineForm(formType, msgId) {
       const kvkkCheck = body.querySelector('.jw-kvkk-check');
       if (kvkkCheck && !kvkkCheck.checked) {
         hasError = true;
+      } else if (kvkkCheck && kvkkCheck.checked) {
+        data.kvkkAccepted = true;
       }
     }
 

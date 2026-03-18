@@ -110,4 +110,22 @@ export const ICO = {
 
   SidebarSimple: (s) =>
     _psvg('M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40ZM40,56H88V200H40ZM216,200H104V56H216Z', s),
+
+  // ── Weather icon dispatcher (WMO weather code → ikon) ───────────────────
+  /**
+   * Open-Meteo API WMO weather code'larını ICO ikonlarına eşler.
+   * Bilinmeyen code → CloudSun fallback.
+   */
+  weatherIcon: (code, s) => {
+    const c = Number(code) || 0;
+    if (c === 0 || c === 1)     return ICO.Sun(s);
+    if (c === 2 || c === 3)     return ICO.CloudSun(s);
+    if (c >= 45 && c <= 48)     return ICO.CloudFog(s);
+    if (c >= 51 && c <= 67)     return ICO.CloudRain(s);
+    if (c >= 71 && c <= 77)     return ICO.Snowflake(s);
+    if (c >= 80 && c <= 82)     return ICO.CloudRain(s);
+    if (c >= 85 && c <= 86)     return ICO.CloudSnow(s);
+    if (c >= 95 && c <= 99)     return ICO.CloudLightning(s);
+    return ICO.CloudSun(s);
+  },
 };
